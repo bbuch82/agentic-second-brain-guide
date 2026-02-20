@@ -1,0 +1,134 @@
+{
+  "version": "1.0",
+  "timezone": "Europe/Berlin",
+  "jobs": [
+    {
+      "id": "nightly_session_reset",
+      "name": "Nightly Session Reset",
+      "schedule": "0 2 * * *",
+      "sessionTarget": "isolated",
+      "wakeMode": "new",
+      "payload": "Perform nightly maintenance: compact the MEMORY.md file by removing stale entries older than 30 days, verify all system files are intact, and log a maintenance summary to 99_Assets/Logs/maintenance.md.",
+      "delivery": {
+        "telegram": false,
+        "vault": true,
+        "vaultPath": "99_Assets/Logs/"
+      }
+    },
+    {
+      "id": "nightly_wisdomizer",
+      "name": "Nightly Wisdomizer",
+      "schedule": "0 3 * * *",
+      "sessionTarget": "isolated",
+      "wakeMode": "new",
+      "payload": "Run the wisdom extraction pipeline: scan 11_Readings/ for notes tagged #unprocessed, extract key insights and quotes, create or update wisdom entries in 05_Wisdom/, add cross-links to relevant projects and people, remove the #unprocessed tag from processed notes. Summarize what you processed to the log.",
+      "delivery": {
+        "telegram": false,
+        "vault": true,
+        "vaultPath": "99_Assets/Logs/"
+      }
+    },
+    {
+      "id": "weekly_librarian",
+      "name": "Weekly Librarian",
+      "schedule": "0 4 * * 0",
+      "sessionTarget": "isolated",
+      "wakeMode": "new",
+      "payload": "Perform weekly library maintenance: audit the vault structure for orphan notes (files with no inbound links), check for broken wikilinks, verify tag consistency, update the MOC (Map of Content) files in each top-level folder, generate a library health report. Save the report to 99_Assets/Logs/librarian-report.md.",
+      "delivery": {
+        "telegram": true,
+        "vault": true,
+        "vaultPath": "99_Assets/Logs/"
+      }
+    },
+    {
+      "id": "daily_journal_creation",
+      "name": "Daily Journal Creation",
+      "schedule": "0 5 * * *",
+      "sessionTarget": "isolated",
+      "wakeMode": "new",
+      "payload": "Create today's daily journal file at 10_Journal/YYYY/MM/YYYY-MM-DD.md using the daily template. Pre-populate it with: weather for Berlin (if available), scheduled meetings from 00_Start/Calendar.md, active projects status, any reminders due today, and a 'Day Ahead' section. Do NOT fill in reflections or accomplishments -- those come in the evening.",
+      "delivery": {
+        "telegram": false,
+        "vault": true,
+        "vaultPath": "10_Journal/"
+      }
+    },
+    {
+      "id": "weekly_scout",
+      "name": "Weekly Scout",
+      "schedule": "0 7 * * 3",
+      "sessionTarget": "isolated",
+      "wakeMode": "new",
+      "payload": "Perform weekly intelligence gathering: review the watch list in 20_Projects/Intelligence/watchlist.md, check for updates on tracked topics (industry trends, competitor moves, technology developments relevant to the user's projects), compile findings into a scout report at 20_Projects/Intelligence/reports/YYYY-MM-DD-scout.md. Highlight anything that connects to active projects or goals.",
+      "delivery": {
+        "telegram": true,
+        "vault": true,
+        "vaultPath": "20_Projects/Intelligence/reports/"
+      }
+    },
+    {
+      "id": "morning_briefing",
+      "name": "Morning Briefing",
+      "schedule": "0 8 * * *",
+      "sessionTarget": "main",
+      "wakeMode": "resume",
+      "payload": "Generate my morning briefing. Include: today's schedule and meetings, top 3 priorities, any follow-ups due today, project status summaries for active projects, any reminders or deadlines within the next 48 hours, and one piece of wisdom from the vault that's relevant to today's focus. Format it cleanly and send via Telegram.",
+      "delivery": {
+        "telegram": true,
+        "vault": true,
+        "vaultPath": "10_Journal/Notes/"
+      }
+    },
+    {
+      "id": "weekly_chief_of_staff",
+      "name": "Weekly Chief of Staff",
+      "schedule": "30 9 * * 1",
+      "sessionTarget": "main",
+      "wakeMode": "resume",
+      "payload": "Run the weekly Chief of Staff review. Analyze the past week: review completed tasks, assess project progress (especially Project Compass and Atlas), identify blockers, check on follow-ups that were not completed, review the week's journal entries for patterns or recurring themes. Then propose the top 5 priorities for this week with rationale. Ask me to confirm or adjust before saving.",
+      "delivery": {
+        "telegram": true,
+        "vault": true,
+        "vaultPath": "10_Journal/Notes/"
+      }
+    },
+    {
+      "id": "midday_check",
+      "name": "Midday Check-in",
+      "schedule": "0 14 * * *",
+      "sessionTarget": "main",
+      "wakeMode": "resume",
+      "payload": "Quick midday check-in. Review today's priorities from the morning briefing. What should I focus on this afternoon? Any meetings coming up that need preparation? Keep it brief -- 3-4 bullet points max. Send via Telegram.",
+      "delivery": {
+        "telegram": true,
+        "vault": false
+      }
+    },
+    {
+      "id": "evening_journal",
+      "name": "Evening Journal",
+      "schedule": "0 22 * * *",
+      "sessionTarget": "main",
+      "wakeMode": "resume",
+      "payload": "Complete today's journal entry at 10_Journal/YYYY/MM/YYYY-MM-DD.md. Review the day: what was accomplished, what conversations happened (both via Telegram and any meetings noted), key decisions made, things learned, and an 'Evening Reflection' section with a brief narrative of how the day went. If there are incomplete tasks, add them to tomorrow's priorities. Keep the tone personal and honest -- this is a journal, not a report.",
+      "delivery": {
+        "telegram": true,
+        "vault": true,
+        "vaultPath": "10_Journal/"
+      }
+    },
+    {
+      "id": "custom_recurring_reminder",
+      "name": "Custom Recurring Reminder",
+      "schedule": "0 9 * * 1",
+      "sessionTarget": "main",
+      "wakeMode": "resume",
+      "payload": "This is an example of a custom recurring reminder. Replace this payload with your own prompt, e.g.: 'Remind me to review my investment portfolio and update 30_Life/Finances/ with any changes.' Adjust the cron schedule to your needs (this one runs every Monday at 09:00).",
+      "delivery": {
+        "telegram": true,
+        "vault": false
+      }
+    }
+  ]
+}

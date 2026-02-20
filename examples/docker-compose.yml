@@ -1,0 +1,139 @@
+# =============================================================================
+# SecondBrain -- OpenClaw Docker Compose (Production)
+# =============================================================================
+#
+# Usage:
+#   1. Copy this file to /opt/openclaw/docker-compose.yml
+#   2. Copy openclaw.json to /opt/openclaw/config/openclaw.json
+#   3. Edit openclaw.json and replace YOUR_*_HERE placeholders
+#   4. Run: docker compose up -d
+#
+# Security features:
+#   - Read-only container filesystem
+#   - All Linux capabilities dropped
+#   - No privilege escalation
+#   - Resource limits (CPU + memory)
+#   - Localhost-only port binding (bypasses UFW exposure)
+#   - Non-executable tmpfs for scratch space
+#   - Log rotation to prevent disk exhaustion
+#
+# =============================================================================
+
+services:
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw
+    restart: unless-stopped
+
+    # -------------------------------------------------------------------------
+    # Security Hardening
+    # -------------------------------------------------------------------------
+    # read_only: prevents the container from writing to its own filesystem.
+    # The agent can only write to explicitly mounted volumes (/workspace, /data)
+    # and tmpfs mounts (/tmp, /run).
+    read_only: true
+
+    security_opt:
+      # Prevents child processes from gaining more privileges than the parent.
+      # Blocks setuid/setgid binaries from escalating.
+      - no-new-privileges:true
+
+    # Remove ALL Linux capabilities. The agent does not need any of them.
+    # This prevents the container from: mounting filesystems, changing file
+    # ownership, binding privileged ports, loading kernel modules, etc.
+    cap_drop:
+      - ALL
+
+    # Temporary filesystems in RAM. noexec prevents running binaries from
+    # these paths; nosuid prevents setuid exploitation.
+    tmpfs:
+      - /tmp:size=100M,noexec,nosuid
+      - /run:size=10M,noexec,nosuid
+
+    # -------------------------------------------------------------------------
+    # Resource Limits
+    # -------------------------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          # Maximum CPU usage. 1.5 = one and a half cores.
+          # Prevents a runaway process from starving the host OS.
+          cpus: "1.5"
+          # Maximum memory. 2GB is generous; typical usage is 200-400MB.
+          # If exceeded, Docker kills the container (OOM) and restarts it.
+          memory: 2G
+        reservations:
+          # Guaranteed minimum resources, even under host contention.
+          cpus: "0.25"
+          memory: 256M
+
+    # -------------------------------------------------------------------------
+    # Network
+    # -------------------------------------------------------------------------
+    ports:
+      # CRITICAL: The 127.0.0.1 prefix binds this port to localhost ONLY.
+      # Without it, Docker publishes the port on 0.0.0.0, which exposes it
+      # to the internet and BYPASSES UFW firewall rules.
+      #
+      # Port 3578 is the OpenClaw gateway API.
+      - "127.0.0.1:3578:3578"
+
+    # -------------------------------------------------------------------------
+    # Volumes
+    # -------------------------------------------------------------------------
+    volumes:
+      # Configuration file (read-only -- the agent cannot modify its own config)
+      - ./config/openclaw.json:/config/openclaw.json:ro
+
+      # Your SecondBrain vault. The agent reads and writes Markdown files here.
+      # This is the only user-data volume with write access.
+      - /opt/SecondBrain:/workspace
+
+      # Persistent internal data: conversation history, auth tokens, state.
+      # Stored in a Docker named volume (survives container recreation).
+      - openclaw-data:/data
+
+    # -------------------------------------------------------------------------
+    # Environment
+    # -------------------------------------------------------------------------
+    environment:
+      # Path to the configuration file inside the container
+      - OPENCLAW_CONFIG=/config/openclaw.json
+      # Timezone for scheduled routines (morning briefing, journal, etc.)
+      # Change this to your timezone: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+      - TZ=Europe/Berlin
+
+    # -------------------------------------------------------------------------
+    # Health Check
+    # -------------------------------------------------------------------------
+    # Docker pings the gateway health endpoint every 30 seconds.
+    # After 3 consecutive failures (90 seconds), the container is marked
+    # unhealthy and restarted (due to restart: unless-stopped).
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3578/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    # -------------------------------------------------------------------------
+    # Logging
+    # -------------------------------------------------------------------------
+    # JSON file logging with rotation. Prevents a verbose agent from filling
+    # your disk. Total maximum log storage: 30MB (3 files x 10MB).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# =============================================================================
+# Named Volumes
+# =============================================================================
+volumes:
+  # Persistent storage for OpenClaw internal data.
+  # Survives container recreation (docker compose up -d).
+  # To back up: docker run --rm -v openclaw-data:/data -v /backup:/backup
+  #             alpine tar czf /backup/openclaw-data.tar.gz /data
+  openclaw-data:
+    driver: local

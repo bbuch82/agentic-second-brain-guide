@@ -1,0 +1,189 @@
+{
+  "version": "1.0",
+
+  "instance": {
+    "name": "SecondBrain",
+    "description": "Personal AI assistant managing an Obsidian vault for knowledge management, journaling, and life organization.",
+    "workspace": "/workspace"
+  },
+
+  "auth": {
+    "profiles": {
+      "google": {
+        "provider": "google",
+        "api_key": "YOUR_GOOGLE_AI_API_KEY_HERE"
+      }
+    }
+  },
+
+  "models": {
+    "default": {
+      "profile": "google",
+      "model": "gemini-2.0-flash",
+      "temperature": 0.3,
+      "max_output_tokens": 8192,
+      "context_window": 1000000
+    },
+    "reasoning": {
+      "profile": "google",
+      "model": "gemini-2.5-pro",
+      "temperature": 0.2,
+      "max_output_tokens": 16384,
+      "context_window": 1000000
+    }
+  },
+
+  "agent": {
+    "model": "default",
+    "subagent_model": "reasoning",
+
+    "system_files": [
+      "SECURITY.md",
+      "IDENTITY.md",
+      "SOUL.md",
+      "AGENTS.md",
+      "TOOLS.md",
+      "HEARTBEAT.md",
+      "USER.md",
+      "MEMORY.md"
+    ],
+
+    "compaction": {
+      "enabled": true,
+      "trigger_tokens": 80000,
+      "target_tokens": 20000,
+      "preserve_recent": 10,
+      "summary_model": "default"
+    },
+
+    "subagents": {
+      "max_concurrent": 3,
+      "timeout_seconds": 120,
+      "max_depth": 2,
+      "inherit_system_files": ["SECURITY.md", "IDENTITY.md"]
+    }
+  },
+
+  "gateway": {
+    "host": "0.0.0.0",
+    "port": 3578,
+    "auth": {
+      "enabled": true,
+      "token_hash": "YOUR_GATEWAY_TOKEN_HASH_HERE"
+    },
+    "cors": {
+      "enabled": false
+    },
+    "rate_limit": {
+      "enabled": true,
+      "requests_per_minute": 30
+    }
+  },
+
+  "tools": {
+    "file_read": {
+      "enabled": true,
+      "max_file_size_bytes": 1048576
+    },
+    "file_write": {
+      "enabled": true,
+      "max_file_size_bytes": 1048576,
+      "backup_before_overwrite": true
+    },
+    "file_search": {
+      "enabled": true,
+      "max_results": 50,
+      "search_hidden": false
+    },
+    "directory_list": {
+      "enabled": true,
+      "max_depth": 5
+    },
+    "bash": {
+      "enabled": true,
+      "allowed_commands": [
+        "git",
+        "date",
+        "wc",
+        "sort",
+        "head",
+        "tail",
+        "grep",
+        "find"
+      ],
+      "timeout_seconds": 30,
+      "max_output_bytes": 65536
+    },
+    "web_fetch": {
+      "enabled": false,
+      "allowed_domains": [],
+      "timeout_seconds": 15
+    }
+  },
+
+  "routines": {
+    "enabled": true,
+    "config_path": "/workspace/HEARTBEAT.md",
+    "timezone": "Europe/Berlin",
+    "jobs": [
+      {
+        "name": "morning_briefing",
+        "cron": "0 7 * * *",
+        "prompt": "Generate the morning briefing as defined in HEARTBEAT.md. Send it to the Telegram channel.",
+        "model": "default",
+        "timeout_seconds": 120
+      },
+      {
+        "name": "evening_journal",
+        "cron": "0 21 * * *",
+        "prompt": "Write today's daily journal entry as defined in HEARTBEAT.md.",
+        "model": "default",
+        "timeout_seconds": 180
+      },
+      {
+        "name": "weekly_review",
+        "cron": "0 10 * * 0",
+        "prompt": "Write this week's review as defined in HEARTBEAT.md.",
+        "model": "reasoning",
+        "timeout_seconds": 300
+      },
+      {
+        "name": "vault_maintenance",
+        "cron": "0 12 * * 0",
+        "prompt": "Delegate to the Librarian agent to perform weekly vault maintenance as defined in HEARTBEAT.md.",
+        "model": "default",
+        "timeout_seconds": 180
+      },
+      {
+        "name": "auto_commit",
+        "cron": "0 23 * * *",
+        "prompt": "Run: git add -A && git commit -m 'Auto-commit: $(date +%Y-%m-%d)' in the workspace directory. If there are no changes, do nothing.",
+        "model": "default",
+        "timeout_seconds": 30
+      }
+    ]
+  },
+
+  "telegram": {
+    "enabled": true,
+    "bot_token": "YOUR_TELEGRAM_BOT_TOKEN_HERE",
+    "allowed_chat_ids": ["YOUR_TELEGRAM_CHAT_ID_HERE"],
+    "webhook": {
+      "enabled": false,
+      "url": "",
+      "secret": ""
+    },
+    "polling": {
+      "enabled": true,
+      "interval_seconds": 2
+    }
+  },
+
+  "logging": {
+    "level": "info",
+    "file": "/data/openclaw.log",
+    "max_size_bytes": 10485760,
+    "max_backups": 3,
+    "format": "json"
+  }
+}
