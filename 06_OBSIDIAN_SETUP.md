@@ -220,71 +220,154 @@ Working Copy can auto-pull on a schedule. Go to **Repository Settings** > **Sync
 
 ## Step 4: Mobile Sync -- Android
 
-On Android, use **Termux** with Git.
+On Android, use **Syncthing** for real-time, bidirectional sync. This is simpler and more reliable than the Termux+Git approach -- no manual sync scripts, no merge conflicts, no terminal needed.
 
-### 4.1: Install Termux
+### Why Syncthing
 
-1. Install [Termux](https://f-droid.org/packages/com.termux/) from **F-Droid** (not the Play Store version, which is outdated)
-2. Open Termux and install Git:
-   ```bash
-   pkg update && pkg install git openssh
-   ```
+| Feature | Why It Matters |
+|---------|---------------|
+| **Real-time sync** | Changes appear on your phone within seconds, not on a manual schedule |
+| **No terminal required** | Works as a background service -- set it and forget it |
+| **Conflict handling** | Built-in conflict resolution with `.sync-conflict` files |
+| **Battery efficient** | Uses filesystem watchers instead of polling |
+| **Encrypted** | TLS-encrypted peer-to-peer connections, no third-party servers |
 
-### 4.2: Set Up SSH
+### 4.1: Install Syncthing on Your Server
 
-Generate a key in Termux:
-
-```bash
-ssh-keygen -t ed25519 -C "secondbrain-android"
-cat ~/.ssh/id_ed25519.pub
-```
-
-Add the public key to your server:
+SSH into your server:
 
 ```bash
-# On your server
-echo "THE_ANDROID_PUBLIC_KEY" >> ~/.ssh/authorized_keys
+ssh secondbrain
 ```
 
-### 4.3: Clone the Vault
-
-In Termux:
+Install Syncthing:
 
 ```bash
-git clone ssh://YOUR_SERVER_IP/opt/SecondBrain-sync.git ~/storage/shared/SecondBrain
+# Add the release channel
+sudo mkdir -p /etc/apt/keyrings
+sudo curl -L -o /etc/apt/keyrings/syncthing-archive-keyring.gpg \
+  https://syncthing.net/release-key.gpg
+echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] \
+  https://apt.syncthing.net/ syncthing stable" | \
+  sudo tee /etc/apt/sources.list.d/syncthing.list
+sudo apt update
+sudo apt install syncthing
 ```
 
-> **Note:** You need to grant Termux storage access first: `termux-setup-storage`
+Enable and start the Syncthing service:
 
-### 4.4: Open in Obsidian
+```bash
+sudo systemctl enable syncthing@root
+sudo systemctl start syncthing@root
+```
+
+Verify it is running:
+
+```bash
+systemctl status syncthing@root
+```
+
+### 4.2: Configure Syncthing on the Server
+
+Syncthing's web UI listens on `127.0.0.1:8384` by default. Access it via SSH tunnel:
+
+```bash
+# From your local machine
+ssh -L 8384:127.0.0.1:8384 secondbrain
+```
+
+Then open `http://127.0.0.1:8384` in your browser.
+
+In the web UI:
+
+1. Click **Add Folder**
+2. Set the folder path to `/opt/SecondBrain`
+3. Give it a label (e.g., `SecondBrain`)
+4. Set **Rescan Interval** to `30` seconds for near-real-time sync
+5. Enable **Watch for Changes**
+
+> **Note:** Allow port 22000 (Syncthing protocol) through your firewall:
+> ```bash
+> sudo ufw allow 22000/tcp
+> ```
+
+### 4.3: Install Syncthing on Android
+
+1. Install [Syncthing](https://play.google.com/store/apps/details?id=com.nutomic.syncthingandroid) from the Play Store or [F-Droid](https://f-droid.org/packages/com.nutomic.syncthingandroid/)
+2. Open the app and note your **Device ID** (Settings > Show Device ID)
+3. Grant storage permissions when prompted
+
+### 4.4: Pair the Devices
+
+**On the server's web UI:**
+
+1. Go to **Remote Devices** > **Add Remote Device**
+2. Enter your Android device ID
+3. Give it a name (e.g., your phone model)
+4. Save
+
+**On Android:**
+
+1. You will see a notification asking to accept the server device -- accept it
+2. The server will then share the `SecondBrain` folder -- accept the folder share
+3. Set the local folder path to a location Obsidian can access (e.g., `/storage/emulated/0/SecondBrain`)
+
+Wait for the initial sync to complete. You can monitor progress in both the server web UI and the Android app.
+
+### 4.5: Open in Obsidian
 
 1. Open Obsidian on Android
-2. **Open folder as vault** > navigate to `SecondBrain` in your shared storage
+2. **Open folder as vault** > navigate to `SecondBrain` in your device storage
+3. Your vault is now live-synced with the server
 
-### 4.5: Sync Script
+### 4.6: Recommended Syncthing Settings
 
-Create a simple sync script in Termux:
+**Server side:**
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| Rescan Interval | `30s` | Fast pickup of AI-generated changes |
+| Watch for Changes | `true` | Instant detection of file writes |
+| File Versioning | Off | Git handles versioning already |
+
+**Android side:**
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| Run on Wi-Fi | `true` | Sync whenever connected |
+| Run on mobile data | Your choice | Enable if you want always-on sync |
+| Run in background | `true` | Keep syncing even when Obsidian is closed |
+| Battery optimization | Excluded | Prevent Android from killing Syncthing |
+
+> **Tip:** Exclude Syncthing from Android's battery optimization (Settings > Apps > Syncthing > Battery > Unrestricted) to prevent the OS from pausing sync in the background.
+
+### 4.7: Ignoring Unnecessary Files
+
+Create a `.stignore` file in your vault root to avoid syncing files that Obsidian or the system generates locally:
 
 ```bash
-cat > ~/sync-vault.sh << 'EOF'
-#!/bin/bash
-cd ~/storage/shared/SecondBrain
-git pull --rebase origin main
-git add -A
-git diff --cached --quiet || git commit -m "mobile: auto-sync $(date +%Y-%m-%d\ %H:%M)"
-git push origin main
-echo "Sync complete: $(date)"
+# On the server
+cat > /opt/SecondBrain/.stignore << 'EOF'
+.git
 EOF
-chmod +x ~/sync-vault.sh
 ```
 
-Run it before and after using Obsidian:
+This prevents syncing the Git repository metadata (which is server-side only) while keeping everything else in sync.
 
-```bash
-~/sync-vault.sh
+### 4.8: How It Works in Practice
+
+```
+┌──────────────┐     Syncthing (TLS)     ┌──────────────┐
+│   Server     │◄───────────────────────►│   Android    │
+│ /opt/Second  │    Port 22000           │ /SecondBrain │
+│    Brain     │    Real-time sync       │              │
+│              │                          │  Obsidian    │
+│  OpenClaw    │                          │  reads/edits │
+│  writes here │                          │  here        │
+└──────────────┘                          └──────────────┘
 ```
 
-You can also set up a Termux cron job with `termux-job-scheduler`, but manual sync is simpler and more reliable on mobile.
+When the AI writes a journal entry at 21:00, it appears on your phone within seconds. When you edit a note in Obsidian on Android, the change syncs back to the server where the AI can see it. No manual sync commands needed.
 
 ---
 

@@ -399,45 +399,167 @@ This is the most personal file. The more context you give, the better the agent 
 
 ---
 
-## MEMORY.md
+## MEMORY.md and the `memory/` Directory
 
-**Purpose:** A living document that the agent updates with learned context over time.
+**Purpose:** A two-tier memory system that gives the agent persistent, structured recall across conversations.
 
-**Priority:** Data store, not a rule source. The agent reads and writes this file.
+**Priority:** Data store, not a rule source. The agent reads and writes these files.
 
-Unlike all other system files, `MEMORY.md` is not written by you -- it is written and maintained by the agent itself. It captures things the agent learns through interaction that are not covered in the other files.
+Unlike all other system files, the memory layer is not written by you -- it is written and maintained by the agent itself. It uses a **Brain Index pattern**: a compact root file (`MEMORY.md`) that acts as a pointer map, backed by a `memory/` directory containing detailed, structured sub-files.
 
-### Key Contents (grows over time)
+### The Brain Index: MEMORY.md
+
+`MEMORY.md` is loaded into every conversation as part of the system prompt. Because every token in a system file costs context window, this file is designed for **token efficiency** -- it contains pointers and summaries, not full details.
 
 ```markdown
-# Memory
+# Brain Index (MEMORY.md)
+> Token-Efficiency Strategy: Read this file first to orient yourself.
+> It contains pointers to active contexts and key lists, avoiding
+> the need for expensive file system scans.
 
-## Learned Preferences
-- Alex prefers "Q1" over "first quarter" in writing.
-- When Alex says "ping Sarah," he means send a Telegram reminder, not email.
-- Alex's investor update goes out on the last Friday of each month.
+## Active Contexts (High Focus)
+**Work:**
+- **[[Project Alpha]]:** Current sprint focus. Design phase.
+- **[[Hiring]]:** Paused until March.
 
-## Recurring Patterns
-- Monday mornings: Alex usually asks for a week planning overview.
-- Friday afternoons: Alex often asks to process accumulated readings.
-- Before board meetings: Alex needs a project status summary.
+**Private:**
+- **[[Health Goal]]:** -10kg Q1. Tracking via Meals_Log.md.
 
-## Important Dates
-- 2026-03-15: Atlas MVP deadline
-- 2026-05-10: Berlin Half-Marathon
-- 2026-06-20: Lily's birthday
-- 2026-07-01: Wanderly Series B board meeting
+## System Map (PARA)
+- **00_Start:** Central Hub (Inbox, Goals, Habits, Tasks Dashboard).
+- **05_Wisdom:** Distilled principles + WISDOM_INDEX.md.
+- **10_Journal:** Daily entries (YYYY/MM/YYYY-MM-DD.md).
+- ...
 
-## Corrections
-- "Project Horizon" was renamed to "Project Atlas" on 2026-01-20. Always use Atlas.
-- Marcus's title changed from "Senior Engineer" to "Lead Engineer" in January 2026.
+## Key Files (Direct Links)
+- **Work Tasks:** 20_Projects/Alpha/MASTER_TODOS.md
+- **People Index:** 40_Network/PEOPLE_INDEX.md
+- **User Patterns:** memory/observations.md
 
-## Vault Notes
-- 11_Readings/ has 47 files as of 2026-02-20.
-- The Wisdom folder was reorganized on 2026-02-01 (merged 3 overlapping files).
+## Indexing Strategy
+1. Read MEMORY.md to find *where* a topic lives.
+2. Use memory_search(query) only if not found here.
+3. Use read(path) once location is known.
 ```
 
-The agent updates `MEMORY.md` when it discovers a new pattern, learns a correction, or notes something worth remembering for future conversations.
+The agent updates this file as contexts shift -- new projects get added, completed ones are removed, key file paths are updated.
+
+### The `memory/` Directory
+
+The `memory/` directory at the vault root contains detailed, structured files that the agent reads on demand (not loaded into every system prompt). This keeps the system prompt lean while giving the agent deep recall when it needs it.
+
+```
+/opt/SecondBrain/
+├── MEMORY.md                    ← Brain Index (always in system prompt)
+└── memory/
+    ├── observations.md          ← User behavior patterns and preferences
+    ├── patterns.md              ← Recurring behavioral and work patterns
+    ├── activity_log.md          ← Chronological log of agent actions
+    ├── agent_tasks.md           ← Agent's own task list (separate from user todos)
+    ├── calendar.md              ← Upcoming events and dates
+    ├── chat_history.md          ← Conversation context summaries
+    ├── heartbeat_state.json     ← State tracking for automated routines
+    └── heartbeat_log.md         ← Log of routine executions
+```
+
+#### observations.md
+
+Captures what the agent learns about the user's preferences and behavior:
+
+```markdown
+# Agent Observations
+
+### 2026-02-02
+- User prefers short, direct answers without process details.
+- User does not want file paths shown in responses.
+
+### 2026-02-07
+- Images must be copied to 99_Assets/Images/ and linked from there.
+
+### 2026-02-15
+- Wikilinks must use the Lastname_Firstname file format, not display names.
+```
+
+#### patterns.md
+
+Tracks recurring patterns across work, personal life, and agent interaction:
+
+```markdown
+# Patterns
+
+## Work Patterns
+- Thinks in "systems" and "scaling." Prefers parallelization over waterfall.
+- Expects proactive suggestions and "co-thinking," not just task execution.
+
+## Private Patterns
+- Uses cooking as a creative outlet.
+
+## Agent Interaction
+- Delivers lots of context via links and audio.
+- When a YouTube URL arrives, automatically pull the transcript.
+```
+
+#### activity_log.md
+
+A chronological record of everything the agent does, using emoji shorthand:
+
+```markdown
+# Activity Log
+
+## 2026-02-02
+| Time  | Icon | Action | Tags |
+|-------|------|--------|------|
+| 20:45 | 📂   | Memory folder reorganized | #system |
+| 20:16 | ➕   | Correction in Meals_Log | #health |
+| 18:54 | 📂   | Article filed, contact updated | #family |
+```
+
+#### heartbeat_state.json
+
+Machine-readable state tracking for automated routines, preventing duplicate runs:
+
+```json
+{
+  "last_runs": {
+    "MORNING_BRIEFING": "2026-02-03T07:05:00",
+    "EVENING_CHECKIN": "2026-02-02T21:30:00",
+    "INBOX_MONITOR": "2026-02-03T11:32:00"
+  },
+  "paused": []
+}
+```
+
+#### agent_tasks.md
+
+The agent's own task list -- tasks it assigns to itself, separate from the user's personal todos:
+
+```markdown
+# Agent Tasks
+
+## Current
+- [ ] Process 11_Readings/Clipped.md regularly
+- [x] Initialize agent task tracking ✅ 2026-02-09
+```
+
+### How the Two Tiers Work Together
+
+```
+Every conversation:
+  1. Agent reads MEMORY.md (always in system prompt, ~50 lines)
+  2. MEMORY.md tells the agent WHERE to look for details
+  3. Agent reads specific memory/ files ON DEMAND when needed
+  4. After the conversation, agent updates relevant memory files
+
+Result:
+  - Low token cost (only the index is loaded every time)
+  - Deep recall (detailed files available when needed)
+  - No context window waste on irrelevant memory
+  - Structured data that survives across conversations
+```
+
+This two-tier approach solves the fundamental tension between "the agent should remember everything" and "the context window is finite." The Brain Index gives the agent a map; the `memory/` directory gives it a library.
+
+> **Going further:** The file-based memory system is enhanced by vector search with embeddings, which lets the agent semantically search across the entire vault -- including all memory files, journal entries, readings, and past conversations. See [Chapter 11: Advanced Memory](./11_ADVANCED_TIPS.md#advanced-memory-vector-search-and-embeddings) for the `memorySearch` configuration in `openclaw.json`.
 
 ---
 

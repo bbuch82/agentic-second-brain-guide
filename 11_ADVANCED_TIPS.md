@@ -13,6 +13,7 @@ This chapter covers the operational side -- keeping your system backed up, costs
 - [Backup Strategy](#backup-strategy)
 - [Cost Breakdown](#cost-breakdown)
 - [Model Tuning](#model-tuning)
+- [Advanced Memory: Vector Search and Embeddings](#advanced-memory-vector-search-and-embeddings)
 - [Compaction and Context Management](#compaction-and-context-management)
 - [Docker Updates and Maintenance](#docker-updates-and-maintenance)
 - [Security Hardening](#security-hardening)
@@ -269,7 +270,189 @@ Refer to your OpenClaw documentation for the full set of configuration options.
 
 ---
 
-## Compaction and Context Management
+## Advanced Memory: Vector Search and Embeddings
+
+Out of the box, OpenClaw's agent can read and write files in the vault. But as your vault grows past a few hundred files, the agent cannot scan everything on every conversation. **Vector search** solves this by creating embeddings of your entire vault, letting the agent semantically search across thousands of files in milliseconds.
+
+This section documents the `memorySearch` configuration block in `openclaw.json` that enables this capability.
+
+### What Changed
+
+The default `openclaw.json` has no `memorySearch` section. Adding one enables:
+
+1. **Embedding generation** for all vault files using Google's embedding model
+2. **A local SQLite vector store** that persists embeddings across sessions
+3. **Hybrid search** combining vector similarity with keyword matching
+4. **Session memory** so the agent remembers what happened in previous conversations
+5. **Automatic re-indexing** when files change
+
+### The Configuration
+
+Add the `memorySearch` block inside `agents.defaults` in your `openclaw.json`:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "memorySearch": {
+        "enabled": true,
+        "sources": ["memory", "sessions"],
+        "extraPaths": ["/home/node/workspace"],
+        "experimental": {
+          "sessionMemory": true
+        },
+        "provider": "gemini",
+        "model": "gemini-embedding-001",
+        "chunking": {
+          "tokens": 512,
+          "overlap": 64
+        },
+        "sync": {
+          "onSessionStart": true,
+          "onSearch": true,
+          "watch": true,
+          "watchDebounceMs": 5000,
+          "intervalMinutes": 5,
+          "sessions": {
+            "deltaBytes": 2048,
+            "deltaMessages": 10
+          }
+        },
+        "query": {
+          "maxResults": 8,
+          "minScore": 0.3,
+          "hybrid": {
+            "enabled": true,
+            "vectorWeight": 0.7,
+            "textWeight": 0.3,
+            "candidateMultiplier": 3,
+            "mmr": {
+              "enabled": true,
+              "lambda": 0.7
+            },
+            "temporalDecay": {
+              "enabled": true,
+              "halfLifeDays": 30
+            }
+          }
+        },
+        "cache": {
+          "enabled": true,
+          "maxEntries": 500
+        }
+      }
+    }
+  }
+}
+```
+
+### Key Settings Explained
+
+#### Sources and Paths
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `sources` | `["memory", "sessions"]` | Index both the `memory/` directory and past conversation sessions |
+| `extraPaths` | `["/home/node/workspace"]` | Index the **entire vault** (`/home/node/workspace` maps to `/opt/SecondBrain` inside Docker) |
+| `experimental.sessionMemory` | `true` | Enable cross-session recall -- the agent remembers previous conversations |
+
+The `extraPaths` setting is critical. Without it, the agent can only search its built-in memory store. With it pointing to the workspace, every Markdown file in your vault becomes searchable via semantic similarity.
+
+#### Embedding Model
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `provider` | `"gemini"` | Use Google's embedding API (same auth as your main model) |
+| `model` | `"gemini-embedding-001"` | Google's text embedding model |
+
+This uses the same Google API key you already configured. Embedding costs are minimal -- a few cents per month for a typical vault.
+
+#### Chunking
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `tokens` | `512` | Split files into 512-token chunks for embedding |
+| `overlap` | `64` | Overlap 64 tokens between chunks to preserve context at boundaries |
+
+Smaller chunks (256) give more precise search results but miss broader context. Larger chunks (1024) capture more context but may dilute the signal. 512 with 64 overlap is a good default.
+
+#### Sync Settings
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `onSessionStart` | `true` | Re-index changed files when a new conversation starts |
+| `onSearch` | `true` | Check for changes before every search query |
+| `watch` | `true` | Watch the filesystem for changes in real-time |
+| `watchDebounceMs` | `5000` | Wait 5 seconds after a file change before re-indexing (batches rapid changes) |
+| `intervalMinutes` | `5` | Full re-sync check every 5 minutes |
+| `sessions.deltaBytes` | `2048` | Re-index a session after 2KB of new content |
+| `sessions.deltaMessages` | `10` | Re-index a session after 10 new messages |
+
+#### Hybrid Search
+
+This is where the magic happens. Pure vector search finds semantically similar content. Pure keyword search finds exact matches. Hybrid combines both:
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `hybrid.enabled` | `true` | Enable combined vector + keyword search |
+| `vectorWeight` | `0.7` | Vector similarity contributes 70% of the final score |
+| `textWeight` | `0.3` | Keyword matching contributes 30% |
+| `candidateMultiplier` | `3` | Fetch 3x more candidates than `maxResults` before re-ranking |
+| `mmr.enabled` | `true` | **Maximal Marginal Relevance** -- diversify results to avoid returning near-duplicates |
+| `mmr.lambda` | `0.7` | Balance between relevance (1.0) and diversity (0.0) |
+| `temporalDecay.enabled` | `true` | Boost recently modified files over stale ones |
+| `temporalDecay.halfLifeDays` | `30` | A file's temporal boost halves every 30 days |
+
+The temporal decay is particularly useful for a SecondBrain: when you ask about a project, the agent naturally prioritizes your recent notes over year-old entries about the same topic.
+
+#### Query Defaults
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `maxResults` | `8` | Return up to 8 relevant chunks per search |
+| `minScore` | `0.3` | Ignore results below 0.3 similarity (filters noise) |
+
+#### Cache
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `cache.enabled` | `true` | Cache search results to avoid redundant embedding lookups |
+| `cache.maxEntries` | `500` | Keep up to 500 cached queries |
+
+### Where the Data Lives
+
+The vector store is a SQLite database at:
+
+```
+/opt/openclaw/config/memory/main.sqlite
+```
+
+This file will grow with your vault. A vault with ~500 Markdown files produces a database of roughly 600-700 MB. This is normal -- embeddings are dense numerical vectors.
+
+### The Result
+
+With this configuration, the agent gains a `memory_search(query)` tool that:
+
+1. Takes a natural language query (e.g., "what did I decide about the hiring strategy?")
+2. Embeds the query using `gemini-embedding-001`
+3. Searches the vector store using hybrid search (70% semantic, 30% keyword)
+4. Applies MMR to diversify results
+5. Applies temporal decay to prefer recent content
+6. Returns the top 8 relevant chunks with file paths and content
+
+This transforms the agent from "can read files you point it to" into "can find relevant information across your entire vault without you specifying where to look."
+
+### Before and After
+
+| Without memorySearch | With memorySearch |
+|---------------------|-------------------|
+| Agent searches files by name/path | Agent searches by meaning |
+| "What did I write about X?" requires knowing the file | "What did I write about X?" searches everywhere |
+| Agent forgets previous conversations | Agent recalls past sessions |
+| Large vaults require manual file references | Large vaults are fully searchable |
+| Agent reads files sequentially | Agent finds relevant chunks in milliseconds |
+
+---
 
 Long-running agents accumulate context. When the context window fills up, the agent loses track of earlier instructions. **Compaction** is how you prevent this.
 

@@ -25,10 +25,11 @@ This guide walks you through building it from scratch: a Hetzner VPS running Ope
 │         │     │          │     │  6 Specialist Agents      │     │  Vault           │
 └─────────┘     └──────────┘     │  Google Gemini API        │     │  (Obsidian)      │
                                  │  Automated Routines       │     │                  │
-                                 └──────────────────────────┘     └──────────────────┘
-                                         ▲                                 ▲
-                                         │        Your Hetzner VPS         │
-                                         └─────────────────────────────────┘
+     ┌──────────┐                └──────────────────────────┘     └──────────────────┘
+     │ Obsidian │                        ▲                                 ▲
+     │ (Mobile/ │◄── Syncthing ──────────┼─────────────────────────────────┘
+     │ Desktop) │    (real-time sync)    │        Your Hetzner VPS         │
+     └──────────┘                        └─────────────────────────────────┘
 ```
 
 ---
@@ -56,6 +57,14 @@ This guide walks you through building it from scratch: a Hetzner VPS running Ope
 ### Full Obsidian Compatibility
 
 Your vault is a folder of Markdown files. Open it in Obsidian on any device for graph views, backlinks, and visual exploration. The AI writes the same format you would by hand.
+
+### Real-Time Mobile Sync via Syncthing
+
+Your Android phone syncs with the server in real-time using Syncthing -- no manual scripts, no terminal, no merge conflicts. Changes the AI makes appear on your phone within seconds, and edits you make in Obsidian mobile sync back instantly.
+
+### Advanced Memory with Vector Search
+
+The agent uses a two-tier memory system: a compact Brain Index loaded into every conversation, backed by a `memory/` directory with structured recall files. Combined with vector embeddings of your entire vault (powered by Gemini Embedding), the agent can semantically search across thousands of files and remember context from previous conversations.
 
 ---
 
