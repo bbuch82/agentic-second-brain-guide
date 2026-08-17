@@ -9,7 +9,16 @@
 # Usage: privacy-check.sh [PATH...]
 #   With paths: scans those paths.
 #   Without:    scans every git-tracked file, minus tools/privacy-check.ignore.
-# Exit: 0 clean, 1 denylist hit, 2 denylist unavailable.
+# Exit: 0 clean, 1 denylist hit, 2 denylist unavailable or unusable.
+#
+# Known limitations:
+#   - Allow-rule (ok:) matching is case-sensitive while deny-rule matching is
+#     case-insensitive, so an ok: rule written in one case will not suppress
+#     a hit that only differs in case. This fails safe (it can over-block,
+#     never silently allow), and the fix — a case-insensitive substitution
+#     flag on sed — does not exist in the sed shipped on macOS.
+#   - Scanning is line-oriented: a denylisted term split across a line break
+#     is not detected.
 set -uo pipefail
 
 DENYLIST="${ASBG_DENYLIST:-$HOME/.config/asbg/denylist.txt}"
@@ -18,36 +27,6 @@ if [[ ! -r "$DENYLIST" ]]; then
   echo "privacy-check: denylist not readable at $DENYLIST" >&2
   echo "privacy-check: create it or set ASBG_DENYLIST; see tools/denylist.example.txt" >&2
   exit 2
-fi
-
-files=()
-if [[ $# -gt 0 ]]; then
-  files=("$@")
-else
-  root="$(git rev-parse --show-toplevel)" || exit 2
-  cd "$root" || exit 2
-  ignore="tools/privacy-check.ignore"
-  prefixes=()
-  if [[ -r "$ignore" ]]; then
-    while IFS= read -r line; do
-      line="${line%%#*}"
-      line="${line#"${line%%[![:space:]]*}"}"
-      line="${line%"${line##*[![:space:]]}"}"
-      [[ -n "$line" ]] && prefixes+=("$line")
-    done < "$ignore"
-  fi
-  while IFS= read -r f; do
-    skip=0
-    for p in ${prefixes[@]+"${prefixes[@]}"}; do
-      if [[ "$f" == "$p"* ]]; then skip=1; break; fi
-    done
-    [[ $skip -eq 0 ]] && files+=("$f")
-  done < <(git ls-files)
-fi
-
-if [[ ${#files[@]} -eq 0 ]]; then
-  echo "privacy-check: no files to scan"
-  exit 0
 fi
 
 # Word-boundary syntax differs between greps: GNU uses \b, BSD uses [[:<:]], and
@@ -68,17 +47,55 @@ detect_boundary_style() {
   echo none
 }
 
-BOUNDARY_STYLE="$(detect_boundary_style)"
-if [[ "$BOUNDARY_STYLE" == none ]]; then
-  echo "privacy-check: this grep has no provable word-boundary support; matching substrings instead (expect false positives)" >&2
-fi
-
 boundary_pattern() {
   case "$BOUNDARY_STYLE" in
     gnu)  printf '\\b%s\\b' "$1" ;;
     bsd)  printf '[[:<:]]%s[[:>:]]' "$1" ;;
     *)    printf '%s' "$1" ;;
   esac
+}
+
+# A NUL byte anywhere in a file marks it as binary; everything else is
+# scanned as text. `od` emits one two-digit hex token per byte; squeezing
+# whitespace onto its own lines and requiring an exact "00" line rules out
+# false positives from adjacent hex digits belonging to two different
+# non-zero bytes.
+is_binary() {
+  od -An -tx1 -- "$1" 2>/dev/null | tr -s ' \n' '\n' | grep -qx '00'
+}
+
+# strip_allowed blanks every ok: match out of a line of grep-hit content, so
+# the same re: pattern can be re-tested against what remains.
+#
+# Three properties are load-bearing here, not incidental:
+#   1. Allow rules apply only to `re:` deny rules, never to plain-name rules.
+#      A denylisted name embedded in an address (name@example.com) must still
+#      be blocked, and the name rule is what blocks it — widening ok: to
+#      cover name rules would open exactly that hole.
+#   2. Matching is token-granular, not line-granular: an allow match is
+#      blanked out of the line and the same re: pattern is re-tested against
+#      the remainder, so a second, non-allowed address on the same line as
+#      an allowed one is still caught (see the "token-granular" test case).
+#   3. Deny and allow rules are read in a single pass before scanning begins,
+#      so file order between them never matters.
+# $'\037' (unit separator) is used as the sed delimiter so an ok: pattern
+# containing `/` or `|` cannot break the substitution.
+#
+# Every ok: rule is proven to compile under this exact sed invocation at
+# startup (see validate_rules), but the check here is kept anyway: a rule can
+# be valid for grep -E and still break sed -E, and defence in depth means
+# this path fails closed even if the startup probe is ever bypassed.
+strip_allowed() {
+  local content; content="$(cat)"
+  local ok out
+  for ok in ${ok_rules[@]+"${ok_rules[@]}"}; do
+    if ! out="$(printf '%s' "$content" | sed -E "s"$'\037'"${ok}"$'\037'" "$'\037'"g" 2>/dev/null)"; then
+      echo "privacy-check: ok: rule broke sed at scan time: '${ok}'" >&2
+      exit 2
+    fi
+    content="$out"
+  done
+  printf '%s' "$content"
 }
 
 # The denylist holds two kinds of line: deny rules (plain text or `re:`),
@@ -98,65 +115,173 @@ while IFS= read -r rule || [[ -n "$rule" ]]; do
   fi
 done < "$DENYLIST"
 
-# strip_allowed blanks every ok: match out of a line of grep-hit content, so
-# the same re: pattern can be re-tested against what remains.
-#
-# Three properties are load-bearing here, not incidental:
-#   1. Allow rules apply only to `re:` deny rules, never to plain-name rules.
-#      A denylisted name embedded in an address (name@example.com) must still
-#      be blocked, and the name rule is what blocks it — widening ok: to
-#      cover name rules would open exactly that hole.
-#   2. Matching is token-granular, not line-granular: an allow match is
-#      blanked out of the line and the same re: pattern is re-tested against
-#      the remainder, so a second, non-allowed address on the same line as
-#      an allowed one is still caught (see the "token-granular" test case).
-#   3. Deny and allow rules are read in a single pass before scanning begins,
-#      so file order between them never matters.
-# $'\037' (unit separator) is used as the sed delimiter so an ok: pattern
-# containing `/` or `|` cannot break the substitution.
-strip_allowed() {
-  local content; content="$(cat)"
+# The denylist is validated once, in full, before any file is scanned. Every
+# failure here exits 2 ("denylist unusable") rather than 1 ("hit found") or
+# 0 ("clean"): an unusable rule set is not the same as a clean scan, and
+# treating it as clean is exactly how a single typo silently disables the
+# gate.
+validate_rules() {
+  if [[ ${#deny_rules[@]} -eq 0 ]]; then
+    echo "privacy-check: denylist contains no deny rules (only comments, blank lines, or ok: rules)" >&2
+    exit 2
+  fi
+
+  local pat rc
+  for pat in "${deny_rules[@]}"; do
+    [[ "$pat" == re:* ]] || continue
+    pat="${pat#re:}"
+    grep -qE -- "$pat" </dev/null 2>/dev/null
+    rc=$?
+    if [[ $rc -gt 1 ]]; then
+      echo "privacy-check: malformed re: rule, does not compile: '${pat}'" >&2
+      exit 2
+    fi
+  done
+
   local ok
   for ok in ${ok_rules[@]+"${ok_rules[@]}"}; do
-    content="$(printf '%s' "$content" | sed -E "s"$'\037'"${ok}"$'\037'" "$'\037'"g")"
+    grep -qE -- "$ok" </dev/null 2>/dev/null
+    rc=$?
+    if [[ $rc -gt 1 ]]; then
+      echo "privacy-check: malformed ok: rule, does not compile as a regex: '${ok}'" >&2
+      exit 2
+    fi
+
+    if ! printf '' | sed -E "s"$'\037'"${ok}"$'\037'" "$'\037'"g" >/dev/null 2>&1; then
+      echo "privacy-check: malformed ok: rule, breaks the sed substitution used at scan time: '${ok}'" >&2
+      exit 2
+    fi
+
+    if printf '%s\n' 'zzz canary line with no secrets zzz' | grep -qE -- "$ok" 2>/dev/null; then
+      echo "privacy-check: ok: rule matches ordinary prose, rejected as an overmatch risk: '${ok}'" >&2
+      exit 2
+    fi
+
+    if printf '\n' | grep -qE -- "$ok" 2>/dev/null; then
+      echo "privacy-check: ok: rule matches the empty string, rejected: '${ok}'" >&2
+      exit 2
+    fi
   done
-  printf '%s' "$content"
 }
 
+BOUNDARY_STYLE="$(detect_boundary_style)"
+if [[ "$BOUNDARY_STYLE" == none ]]; then
+  echo "privacy-check: this grep has no provable word-boundary support; matching substrings instead (expect false positives)" >&2
+fi
+
+validate_rules
+
+files=()
+if [[ $# -gt 0 ]]; then
+  files=("$@")
+else
+  root="$(git rev-parse --show-toplevel)" || exit 2
+  cd "$root" || exit 2
+  ignore="tools/privacy-check.ignore"
+  prefixes=()
+  if [[ -r "$ignore" ]]; then
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line="${line#"${line%%[![:space:]]*}"}"
+      line="${line%"${line##*[![:space:]]}"}"
+      [[ -n "$line" ]] || continue
+      # An ignore entry must be unambiguous: either a directory prefix
+      # (trailing slash) or an exact, existing file. An entry without a
+      # trailing slash that names a nonexistent path would silently
+      # over-match any sibling path sharing that prefix (e.g. `v1` would
+      # also exempt `v1-old/`).
+      if [[ "$line" != */ && ! -f "$line" ]]; then
+        echo "privacy-check: invalid entry in $ignore: '${line}' (must end in / or name an existing file)" >&2
+        exit 2
+      fi
+      prefixes+=("$line")
+    done < "$ignore"
+  fi
+  while IFS= read -r f; do
+    skip=0
+    for p in ${prefixes[@]+"${prefixes[@]}"}; do
+      if [[ "$f" == "$p"* ]]; then skip=1; break; fi
+    done
+    [[ $skip -eq 0 ]] && files+=("$f")
+  done < <(git ls-files)
+fi
+
+if [[ ${#files[@]} -eq 0 ]]; then
+  echo "privacy-check: no files to scan"
+  exit 0
+fi
+
+text_files=()
+binary_files=()
+for f in "${files[@]}"; do
+  if is_binary "$f"; then
+    binary_files+=("$f")
+  else
+    text_files+=("$f")
+  fi
+done
+
+# Scanning is per-file, per-rule, on purpose:
+#   - Binary files (C1) are matched with grep -a (never -I, which would treat
+#     them as an automatic non-match) so a denylisted term in, say, image
+#     metadata is still caught. Only a presence check is done on them —
+#     their content is never printed to the report.
+#   - Text files are matched one file at a time, rather than batching every
+#     file into a single grep call. grep only prints a path prefix when
+#     scanning multiple files at once, so batching would recreate the exact
+#     "path:lineno:content" field-splitting fragility this design avoids
+#     (unambiguous on a path that itself contains a colon): scanning one file
+#     at a time means the path is already known from the loop variable, and
+#     grep's un-prefixed "lineno:content" output only ever needs one split.
 status=0
 rules=0
-for rule in ${deny_rules[@]+"${deny_rules[@]}"}; do
+for rule in "${deny_rules[@]}"; do
   rules=$((rules + 1))
   if [[ "$rule" == re:* ]]; then
     pattern="${rule#re:}"
-    # -H forces the path:lineno:content format even when only one file is
-    # scanned; grep otherwise omits the path prefix for a single-file input,
-    # which the field split below relies on.
-    if hits="$(grep -InEHi -- "$pattern" "${files[@]}" 2>/dev/null)"; then
-      real_hits=""
-      while IFS= read -r hitline; do
-        [[ -z "$hitline" ]] && continue
-        content="$(cut -d: -f3- <<< "$hitline")"
-        remaining="$(printf '%s' "$content" | strip_allowed)"
-        if grep -qEi -- "$pattern" <<< "$remaining" 2>/dev/null; then
-          real_hits+="${hitline}"$'\n'
+  else
+    pattern="$(boundary_pattern "$rule")"
+  fi
+
+  for f in ${binary_files[@]+"${binary_files[@]}"}; do
+    if grep -aqE -- "$pattern" "$f" 2>/dev/null; then
+      echo "privacy-check: BLOCKED by rule '${rule}'" >&2
+      echo "${f}: binary file matches rule '${rule}'" >&2
+      status=1
+    fi
+  done
+
+  for f in ${text_files[@]+"${text_files[@]}"}; do
+    if hits="$(grep -nEi -- "$pattern" "$f" 2>/dev/null)"; then
+      if [[ "$rule" == re:* ]]; then
+        real_hits=""
+        while IFS= read -r hitline; do
+          [[ -z "$hitline" ]] && continue
+          content="${hitline#*:}"
+          remaining="$(printf '%s' "$content" | strip_allowed)"
+          if grep -qEi -- "$pattern" <<< "$remaining" 2>/dev/null; then
+            real_hits+="${f}:${hitline}"$'\n'
+          fi
+        done <<< "$hits"
+        real_hits="${real_hits%$'\n'}"
+        if [[ -n "$real_hits" ]]; then
+          echo "privacy-check: BLOCKED by rule '${rule}'" >&2
+          printf '%s\n' "$real_hits" | head -20 >&2
+          status=1
         fi
-      done <<< "$hits"
-      real_hits="${real_hits%$'\n'}"
-      if [[ -n "$real_hits" ]]; then
+      else
+        display_hits=""
+        while IFS= read -r hitline; do
+          [[ -z "$hitline" ]] && continue
+          display_hits+="${f}:${hitline}"$'\n'
+        done <<< "$hits"
+        display_hits="${display_hits%$'\n'}"
         echo "privacy-check: BLOCKED by rule '${rule}'" >&2
-        printf '%s\n' "$real_hits" | head -20 >&2
+        printf '%s\n' "$display_hits" | head -20 >&2
         status=1
       fi
     fi
-  else
-    pattern="$(boundary_pattern "$rule")"
-    if hits="$(grep -InEi -- "$pattern" "${files[@]}" 2>/dev/null)"; then
-      echo "privacy-check: BLOCKED by rule '${rule}'" >&2
-      printf '%s\n' "$hits" | head -20 >&2
-      status=1
-    fi
-  fi
+  done
 done
 
 if [[ $status -ne 0 ]]; then
