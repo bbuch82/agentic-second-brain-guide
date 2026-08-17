@@ -55,12 +55,24 @@ boundary_pattern() {
   esac
 }
 
-# A NUL byte anywhere in a file marks it as binary; everything else is
-# scanned as text. `od` emits one two-digit hex token per byte; squeezing
-# whitespace onto its own lines and requiring an exact "00" line rules out
-# false positives from adjacent hex digits belonging to two different
-# non-zero bytes.
+# A NUL byte anywhere in a file marks it as binary; everything else is text —
+# but a file this process cannot read has no content to classify either way,
+# and reporting one anyway is the same shape of mistake as two other bugs
+# found in this scanner (see docs/material/failure-modes-observed.md,
+# entries 6 and 7): an I/O failure quietly folded into a result that looks
+# like success. A classifier with no opinion must say so, not guess "text"
+# and let whatever runs next inherit the blind spot. So unreadable files
+# (wrong permissions, a broken symlink, an unmounted path) are a hard stop
+# right here, before either scan branch runs, rather than a silent default.
+#
+# `od` emits one two-digit hex token per byte; squeezing whitespace onto its
+# own lines and requiring an exact "00" line rules out false positives from
+# adjacent hex digits belonging to two different non-zero bytes.
 is_binary() {
+  if [[ ! -r "$1" ]]; then
+    echo "privacy-check: cannot read ${1} to classify it (permissions, a broken symlink, or a missing file)" >&2
+    exit 2
+  fi
   od -An -tx1 -- "$1" 2>/dev/null | tr -s ' \n' '\n' | grep -qx '00'
 }
 

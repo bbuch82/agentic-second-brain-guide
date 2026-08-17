@@ -94,6 +94,21 @@ printf 'nothing\x00to\x00see\x00here\n' > "$TMP/clean.bin"
 ASBG_DENYLIST="$TMP/denylist.txt" bash "$CHECK" "$TMP/clean.bin" >/dev/null 2>&1
 check "binary file without a denylisted term passes" 0 $?
 
+# --- Files the scanner cannot read ---------------------------------------
+# These exercise the scan-time grep-exit-status check (scan_grep_rc): the
+# file exists and passes classification, but grep itself cannot open it, and
+# that failure (exit 2) must be a hard stop rather than "no match" (exit 1).
+printf 'acme-forbidden-term inside\n' > "$TMP/unreadable.md"
+chmod 000 "$TMP/unreadable.md"
+ASBG_DENYLIST="$TMP/denylist.txt" bash "$CHECK" "$TMP/unreadable.md" >/dev/null 2>&1
+unreadable_rc=$?
+chmod 644 "$TMP/unreadable.md"
+check "an unreadable file (mode 000) fails closed, not silently clean" 2 "$unreadable_rc"
+
+ln -s "$TMP/does-not-exist-target" "$TMP/dangling.md"
+ASBG_DENYLIST="$TMP/denylist.txt" bash "$CHECK" "$TMP/dangling.md" >/dev/null 2>&1
+check "a dangling symlink fails closed, not silently clean" 2 $?
+
 # --- Denylist validation -----------------------------------------------
 printf 're:(unbalanced[paren\n' > "$TMP/malformed-deny-denylist.txt"
 printf 'this line contains (unbalanced[paren as a literal substring\n' > "$TMP/malformed-deny.md"
