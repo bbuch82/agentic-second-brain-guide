@@ -233,6 +233,22 @@ done
 #     (unambiguous on a path that itself contains a colon): scanning one file
 #     at a time means the path is already known from the loop variable, and
 #     grep's un-prefixed "lineno:content" output only ever needs one split.
+# scan_grep_rc treats grep's own error exit (2: malformed pattern, unreadable
+# file, etc.) as a hard stop, distinct from "no match" (1) and "match" (0).
+# validate_rules already proves every deny and allow pattern compiles before
+# any file is scanned, so this should never fire — it exists as defence in
+# depth, on the same principle as strip_allowed's sed exit-status check: a
+# pattern that compiles standalone can still fail in a context validate_rules
+# did not anticipate, and folding that failure into "no match" is exactly how
+# a rule silently stops firing while the scan reports clean.
+scan_grep_rc() {
+  local rc="$1" rule="$2" f="$3"
+  if [[ $rc -eq 2 ]]; then
+    echo "privacy-check: rule '${rule}' failed to scan ${f} (grep reported an error, not just no match)" >&2
+    exit 2
+  fi
+}
+
 status=0
 rules=0
 for rule in "${deny_rules[@]}"; do
@@ -244,7 +260,10 @@ for rule in "${deny_rules[@]}"; do
   fi
 
   for f in ${binary_files[@]+"${binary_files[@]}"}; do
-    if grep -aqE -- "$pattern" "$f" 2>/dev/null; then
+    grep -aqE -- "$pattern" "$f" 2>/dev/null
+    rc=$?
+    scan_grep_rc "$rc" "$rule" "$f"
+    if [[ $rc -eq 0 ]]; then
       echo "privacy-check: BLOCKED by rule '${rule}'" >&2
       echo "${f}: binary file matches rule '${rule}'" >&2
       status=1
@@ -252,14 +271,20 @@ for rule in "${deny_rules[@]}"; do
   done
 
   for f in ${text_files[@]+"${text_files[@]}"}; do
-    if hits="$(grep -nEi -- "$pattern" "$f" 2>/dev/null)"; then
+    hits="$(grep -nEi -- "$pattern" "$f" 2>/dev/null)"
+    rc=$?
+    scan_grep_rc "$rc" "$rule" "$f"
+    if [[ $rc -eq 0 ]]; then
       if [[ "$rule" == re:* ]]; then
         real_hits=""
         while IFS= read -r hitline; do
           [[ -z "$hitline" ]] && continue
           content="${hitline#*:}"
           remaining="$(printf '%s' "$content" | strip_allowed)"
-          if grep -qEi -- "$pattern" <<< "$remaining" 2>/dev/null; then
+          grep -qEi -- "$pattern" <<< "$remaining" 2>/dev/null
+          retest_rc=$?
+          scan_grep_rc "$retest_rc" "$rule" "$f"
+          if [[ $retest_rc -eq 0 ]]; then
             real_hits+="${f}:${hitline}"$'\n'
           fi
         done <<< "$hits"

@@ -95,6 +95,11 @@ ASBG_DENYLIST="$TMP/denylist.txt" bash "$CHECK" "$TMP/clean.bin" >/dev/null 2>&1
 check "binary file without a denylisted term passes" 0 $?
 
 # --- Denylist validation -----------------------------------------------
+printf 're:(unbalanced[paren\n' > "$TMP/malformed-deny-denylist.txt"
+printf 'this line contains (unbalanced[paren as a literal substring\n' > "$TMP/malformed-deny.md"
+ASBG_DENYLIST="$TMP/malformed-deny-denylist.txt" bash "$CHECK" "$TMP/malformed-deny.md" >/dev/null 2>&1
+check "a malformed deny re: rule fails closed, not silently clean" 2 $?
+
 printf 'acme-forbidden-term\nok:(unbalanced[paren\n' > "$TMP/malformed-ok-denylist.txt"
 out="$(ASBG_DENYLIST="$TMP/malformed-ok-denylist.txt" bash "$CHECK" "$TMP/clean.md" 2>&1)"
 rc=$?
