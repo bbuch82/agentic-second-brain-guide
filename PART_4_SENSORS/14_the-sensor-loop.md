@@ -124,7 +124,7 @@ The habit tags in that generated block are the loop's most interesting
 interface, because they have **three independent producers**:
 
 - the sync job, from a threshold on a measurement
-- an agent, during a conversation ("log that I read tonight")
+- an agent, during a conversation ("log tonight's reading")
 - you, typing `#habit/reading` in an editor
 
 and exactly one consumer: the dashboard query that aggregates them. That works

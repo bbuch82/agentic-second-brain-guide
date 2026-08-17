@@ -127,7 +127,7 @@ Four reasons, and they generalise to any machine-written series:
 
 1. A partial failure costs one line, not a file.
 2. Appending is the only write, so no reader can be mid-parse during a write.
-3. The last line is the cursor. A sync job that asks "where did I stop" reads
+3. The last line is the cursor. A sync job asking where it left off reads
    its own output instead of maintaining a state file that can disagree with
    reality.
 4. Thousands of daily records in thousands of notes make every query walk the
@@ -145,13 +145,13 @@ API key, remove the container.
 
 What is left?
 
-If the answer is "a folder of Markdown files I can read, search, edit, and
-publish from, with a full history", the vault was the system and the agent was
+If the answer is a folder of Markdown files you can read, search, edit and
+publish from, with a full history, then the vault was the system and the agent was
 a client. Everything the agent produced is still yours, and swapping in a
 different one next year is a configuration change.
 
-If the answer is "a chat history I can no longer query" or "a database in a
-format only that tool reads", the agent was the system. The value lives inside
+If the answer is a chat history nobody can query any more, or a database in a
+format only that tool reads, then the agent was the system. The value lives inside
 someone else's process, and it leaves when that process does.
 
 This is the property that makes the rest of the architecture possible. Chapter
