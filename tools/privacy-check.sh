@@ -127,6 +127,25 @@ while IFS= read -r rule || [[ -n "$rule" ]]; do
   fi
 done < "$DENYLIST"
 
+# Two fixed canary sentences, deliberately different in vocabulary, used to
+# reject an ok: rule that overmatches. Not randomised: the check must give
+# the same answer on every run, or an operator cannot reproduce a rejection.
+readonly CANARY_A='zzz canary line with no secrets zzz'
+readonly CANARY_B='another distinct probe about ordinary matters'
+
+# An allow rule is meant to excise a single token from a line, not gut it.
+# Whether a rule merely *matches* a canary cannot tell a word-bounded rule
+# (legitimate; removes a token) from `.*` (removes everything) — both match.
+# What distinguishes them is how much of the line disappears, so the rule is
+# applied to each canary exactly as strip_allowed would, and rejected only if
+# it strips away more than half of one. Half, not some smaller fraction: a
+# rule that excises one real word out of a short sentence can reasonably
+# remove a third or more of it, and rejecting on presence-of-any-word-match
+# is exactly the bug this constant replaces (an operator's correct,
+# narrowly-scoped rule refused only because it happened to share vocabulary
+# with the canary text — as fatal as a bypass, from the other direction).
+readonly ALLOW_RULE_MAX_STRIP_FRACTION_DENOM=2
+
 # The denylist is validated once, in full, before any file is scanned. Every
 # failure here exits 2 ("denylist unusable") rather than 1 ("hit found") or
 # 0 ("clean"): an unusable rule set is not the same as a clean scan, and
@@ -164,15 +183,22 @@ validate_rules() {
       exit 2
     fi
 
-    if printf '%s\n' 'zzz canary line with no secrets zzz' | grep -qE -- "$ok" 2>/dev/null; then
-      echo "privacy-check: ok: rule matches ordinary prose, rejected as an overmatch risk: '${ok}'" >&2
-      exit 2
-    fi
-
     if printf '\n' | grep -qE -- "$ok" 2>/dev/null; then
       echo "privacy-check: ok: rule matches the empty string, rejected: '${ok}'" >&2
       exit 2
     fi
+
+    local canary orig_len stripped remaining_len removed
+    for canary in "$CANARY_A" "$CANARY_B"; do
+      orig_len=${#canary}
+      stripped="$(printf '%s' "$canary" | sed -E "s"$'\037'"${ok}"$'\037'" "$'\037'"g" 2>/dev/null)"
+      remaining_len=${#stripped}
+      removed=$(( orig_len - remaining_len ))
+      if (( removed * ALLOW_RULE_MAX_STRIP_FRACTION_DENOM > orig_len )); then
+        echo "privacy-check: ok: rule strips more than half of a canary line, rejected as an overmatch risk: '${ok}'" >&2
+        exit 2
+      fi
+    done
   done
 }
 

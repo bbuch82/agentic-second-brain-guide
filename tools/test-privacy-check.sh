@@ -123,7 +123,42 @@ check_contains "malformed ok: rule message names the offending rule" "$out" '(un
 
 printf 'acme-forbidden-term\nok:.*\n' > "$TMP/overmatch-ok-denylist.txt"
 ASBG_DENYLIST="$TMP/overmatch-ok-denylist.txt" bash "$CHECK" "$TMP/clean.md" >/dev/null 2>&1
-check "an ok: rule matching ordinary prose is rejected" 2 $?
+check "an ok: rule matching everything (.*) is still rejected" 2 $?
+
+printf 'acme-forbidden-term\nok:x*\n' > "$TMP/empty-match-ok-denylist.txt"
+ASBG_DENYLIST="$TMP/empty-match-ok-denylist.txt" bash "$CHECK" "$TMP/clean.md" >/dev/null 2>&1
+check "an ok: rule matching the empty string is rejected" 2 $?
+
+# A single word-bounded token is a legitimate allow-rule shape — exactly what
+# an operator writes to suppress a deny rule that is too eager on a short
+# word. It happens to share a word ("no") with one of the two fixed canary
+# sentences privacy-check.sh checks allow rules against, but removing two
+# characters out of ~35 is nothing like `.*` removing the whole line, so it
+# must be accepted, not rejected for merely matching some canary text.
+# %s, not the format string, carries the rule text: printf's format string
+# interprets \b as a literal backspace byte, which would silently corrupt
+# this word-boundary pattern into something that matches nothing at all.
+printf '%s\n' 're:LEAKTOKEN-[0-9]{3}' 'ok:\bno\b' > "$TMP/word-scoped-ok-denylist.txt"
+ASBG_DENYLIST="$TMP/word-scoped-ok-denylist.txt" bash "$CHECK" "$TMP/clean.md" >/dev/null 2>&1
+check "a narrow word-scoped ok: rule is accepted, not rejected as overmatch" 0 $?
+
+printf 'no mention of LEAKTOKEN-123 here\n' > "$TMP/word-scoped-hit.md"
+ASBG_DENYLIST="$TMP/word-scoped-ok-denylist.txt" bash "$CHECK" "$TMP/word-scoped-hit.md" >/dev/null 2>&1
+check "the scan still behaves normally after accepting a word-scoped ok: rule" 1 $?
+
+# These two pin the exact threshold against privacy-check.sh's first fixed
+# canary, "zzz canary line with no secrets zzz" (35 characters): stripping
+# its first 18 characters leaves 18, removing 17 (just under half, kept);
+# stripping its first 19 characters leaves 17, removing 18 (just over half,
+# rejected). A later change to the threshold, or to the canary text, must
+# change one of these two literals for the test to keep meaning what it says.
+printf 'acme-forbidden-term\nok:zzz canary line wi\n' > "$TMP/just-under-half-denylist.txt"
+ASBG_DENYLIST="$TMP/just-under-half-denylist.txt" bash "$CHECK" "$TMP/clean.md" >/dev/null 2>&1
+check "an ok: rule removing just under half a canary is accepted" 0 $?
+
+printf 'acme-forbidden-term\nok:zzz canary line wit\n' > "$TMP/just-over-half-denylist.txt"
+ASBG_DENYLIST="$TMP/just-over-half-denylist.txt" bash "$CHECK" "$TMP/clean.md" >/dev/null 2>&1
+check "an ok: rule removing just over half a canary is rejected" 2 $?
 
 printf '# just a comment\n\n' > "$TMP/empty-denylist.txt"
 ASBG_DENYLIST="$TMP/empty-denylist.txt" bash "$CHECK" "$TMP/clean.md" >/dev/null 2>&1
