@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Blocks a commit whose staged content fails the publication checks.
+set -uo pipefail
+
+root="$(git rev-parse --show-toplevel)" || exit 1
+cd "$root" || exit 1
+
+mapfile -t staged < <(git diff --cached --name-only --diff-filter=ACMR)
+if [[ ${#staged[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+existing=()
+for f in "${staged[@]}"; do
+  [[ -f "$f" ]] && existing+=("$f")
+done
+
+if [[ ${#existing[@]} -gt 0 ]]; then
+  if ! bash tools/privacy-check.sh "${existing[@]}"; then
+    echo "pre-commit: privacy-check failed" >&2
+    exit 1
+  fi
+fi
+
+if [[ -x tools/link-check.py ]] || [[ -f tools/link-check.py ]]; then
+  if ! python3 tools/link-check.py; then
+    echo "pre-commit: link-check failed" >&2
+    exit 1
+  fi
+fi
+
+exit 0

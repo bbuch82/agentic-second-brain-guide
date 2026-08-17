@@ -1,0 +1,11 @@
+# Path prefixes exempt from the privacy scan. One per line, reason required.
+
+# v1/ is the previously published guide, archived verbatim per the spec. Its
+# content is already public, and altering it would defeat the purpose of the
+# archive. Anything sensitive in it was published in 2026 and cannot be recalled
+# by editing this repository.
+v1/
+
+# The example denylist deliberately contains the generic patterns it teaches,
+# which the scanner would otherwise flag as matches against itself.
+tools/denylist.example.txt

@@ -1,0 +1,54 @@
+# Denylist format — copy this file to ~/.config/asbg/denylist.txt and fill it in.
+#
+# THE REAL DENYLIST IS NEVER COMMITTED. It contains exactly the strings that
+# must not be published; committing it would publish them.
+#
+# One rule per line. Blank lines and lines starting with # are ignored.
+#   plain text   matched case-insensitively on word boundaries
+#   re:PATTERN   matched as an extended regular expression
+#   ok:PATTERN   an allow rule: suppresses a re: rule's match on the
+#                substring it covers, everywhere that substring appears.
+#                Scope is deliberate and narrow:
+#                  - ok: rules apply only to re: rules, never to plain-text
+#                    rules. A denylisted name embedded in an address
+#                    (name@example.com) must still be blocked by the name
+#                    rule regardless of any ok: rule.
+#                  - Matching is token-granular: only the matched substring
+#                    is suppressed, not the whole line, so a second,
+#                    non-allowed match on the same line is still reported.
+#
+# --- Identity -----------------------------------------------------------
+# Your name, every spelling and every handle. Family members. Colleagues.
+#
+# --- Organizations ------------------------------------------------------
+# Employers, clients, mandates. Product and brand names from your work.
+#
+# --- Vault content ------------------------------------------------------
+# Real area directory names. Real project names. Distinctive note titles.
+#
+# --- Infrastructure -----------------------------------------------------
+# Server hostnames. SSH aliases. Private repository names. Container names.
+re:/Users/[a-z0-9._-]+/
+re:/home/[a-z0-9._-]+/
+re:ssh\s+[a-z0-9._-]+@
+#
+# --- Contact and secrets ------------------------------------------------
+re:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}
+re:\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b
+re:[0-9]{8,10}:[A-Za-z0-9_-]{35}
+re:sk-[A-Za-z0-9]{20,}
+re:AIza[0-9A-Za-z_-]{35}
+#
+# --- Allow rules ----------------------------------------------------------
+# Reserved-for-documentation addresses and ranges that the contact/secrets
+# re: rules above would otherwise flag. Each is guaranteed non-real by the
+# standard that reserves it, so allowing it costs nothing.
+ok:[a-zA-Z0-9._%+-]+@example\.(com|org|net)
+# example.com/org/net are reserved for documentation, RFC 2606.
+ok:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(invalid|test|example|localhost)
+# .invalid/.test/.example/.localhost are reserved TLDs, RFC 2606.
+ok:192\.0\.2\.[0-9]{1,3}
+# 192.0.2.0/24 (TEST-NET-1) is reserved for documentation, RFC 5737.
+#
+# --- Personal measurements ----------------------------------------------
+# Any body metric that is a real reading rather than a placeholder.
