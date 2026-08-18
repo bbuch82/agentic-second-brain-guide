@@ -125,6 +125,29 @@ one that prompted it.
 **Lesson:** a fix that addresses an instance rather than a class invites the
 class back through a different door.
 
+## 8. A test that passed for the wrong reason
+
+**Symptom:** an unexpected green.
+
+**Mechanism:** a test fixture for a word-boundary rule was written with
+`printf 'ok:\bno\b\n'`. `printf` interprets `\b` in its format string as a
+backspace byte, so the rule that reached the file was corrupted and matched
+nothing — and "matched nothing" made the test pass. The expected result and the
+observed result agreed for entirely unrelated reasons.
+
+**Fix:** pass data through `%s` rather than embedding it in a format string.
+
+**Lesson:** the green was suspicious before it was understood, and that was the
+signal worth acting on. Confirming it meant looking at the bytes rather than the
+output. **An unexpected pass is a bug report about the test.** A result that
+arrives more easily than it should has usually skipped the thing it claimed to
+measure.
+
+**Related technique:** the coverage gap in the entry below was proved the same
+way round — by removing the defence and re-running the suite. If nothing goes
+red, nothing was testing it. Mutation beats inspection for answering "is this
+actually covered", and it takes about a minute.
+
 ---
 
 ## The unreadable file
