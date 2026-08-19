@@ -42,10 +42,9 @@ problem — and a stale index is chapter 20's whole subject.
 knowing the convention. That is the payoff for chapter 01's insistence that
 conventions exist because programs depend on them.
 
-Where embeddings genuinely help: finding everything you have written that relates
-to an idea,
-across thousands of concept notes, where you cannot name the target. That is a real
-use case and it arrives later than people think. Build it when a specific question
+Where embeddings genuinely help: finding everything across thousands of concept
+notes that relates to an idea you cannot name a keyword for. That is a real use
+case and it arrives later than people think. Build it when a specific question
 has repeatedly failed, not in advance.
 
 ## The context budget is the real constraint
