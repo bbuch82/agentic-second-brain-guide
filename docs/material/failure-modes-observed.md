@@ -3,8 +3,8 @@
 Raw material for Part 5, chapter 20. Every entry below was observed while
 building this repository, not imagined for it. Chapter 20 argues that the
 failures worth catching in an agentic system are the ones that exit zero; the
-entries here are the evidence, and the first seven all come from a single tool
-whose only job is to block.
+entries here are the evidence, and all nine come from a single tool whose only
+job is to block.
 
 Add to this file whenever a real failure is found. Do not invent entries.
 
@@ -14,8 +14,8 @@ Add to this file whenever a real failure is found. Do not invent entries.
 
 `tools/privacy-check.sh` scans the repository for strings that must never be
 published and blocks the commit. It is the smallest possible security gate:
-one input file of rules, one output signal, one decision. It shipped with
-seven distinct ways to report success while failing.
+one input file of rules, one output signal, one decision. It shipped with nine
+distinct ways to report success while failing.
 
 ## 1. Word-boundary syntax that silently matched nothing
 
@@ -148,6 +148,47 @@ way round — by removing the defence and re-running the suite. If nothing goes
 red, nothing was testing it. Mutation beats inspection for answering "is this
 actually covered", and it takes about a minute.
 
+## 9. One rule file, two regex engines
+
+**Symptom:** an allow rule that did nothing, and a deny rule that let a real
+address through. Both silent.
+
+**Mechanism:** deny rules are applied with `grep -E`; allow rules are applied with
+`sed -E`, because they have to *remove* their match rather than report it. The two
+engines do not accept the same syntax. An allow rule written with `\s` — valid in
+the local grep — matched nothing at all under sed, so the rule silently had no
+effect and correct content stayed blocked.
+
+The second half was worse. An allow rule intended for reserved documentation
+domains was written unanchored:
+
+```
+@[a-zA-Z0-9.-]+\.(invalid|test|example|localhost)
+```
+
+Against a real address whose host happened to contain `example` as a middle label,
+the rule matched that fragment, stripped it, and left a remainder the deny rule no
+longer recognised. A real address passed because a documentation exemption matched
+the middle of its domain rather than its end.
+
+The gate caught this text, too: the first draft of this entry quoted the offending
+address literally, and the email rule blocked the commit. Correct behaviour — an
+illustration does not need to be a live example.
+
+**Fix:** POSIX classes (`[[:space:]]`) rather than engine extensions, everywhere a
+rule may be handled by more than one tool. And the unanchored rule deleted rather
+than patched, keeping only a form where the literal has to sit immediately after
+the `@`.
+
+**Lesson:** a configuration file consumed by two different engines has two
+dialects, and the narrower one governs. Worth stating in the file itself, because
+nothing about a list of regexes reveals which tool will run them.
+
+**Second lesson, and the sharper one:** an allow rule is a hole by construction, so
+it needs a test in *both* directions — that the example passes and that the real
+thing still fails. Testing only the former is how the second bug shipped. Every
+exemption added to a security gate should arrive with the negative case beside it.
+
 ---
 
 ## The unreadable file
@@ -166,7 +207,7 @@ general form of every entry above.
 
 ## What this collection is for
 
-Seven fail-open paths in roughly two hundred lines of shell whose single
+Nine fail-open paths in roughly two hundred lines of shell whose single
 purpose is to say no. Not written carelessly — written with tests from the
 first commit, reviewed by a second party, and hardened twice. The tests passed
 at every stage. Every one of these was found by asking a different question:

@@ -116,7 +116,7 @@ The privacy checker in this repository exists to scan for content that must neve
 be published and to block the commit. One input file of rules, one decision. As
 small as a security gate gets.
 
-It shipped with **eight distinct ways to report success while failing**, and every
+It shipped with **nine distinct ways to report success while failing**, and every
 one of them was found by asking a different question than "do the tests pass":
 
 | # | Mechanism | Result |
@@ -129,11 +129,12 @@ one of them was found by asking a different question than "do the tests pass":
 | 6 | Exit status 2 (invalid pattern) folded into the exit-1 (no match) path | A broken rule neutered itself, silently |
 | 7 | A stray argument reintroduced #6 in the code written to fix #5 | Same root cause, different door |
 | 8 | A test fixture corrupted by `printf` interpreting an escape | The test passed for an unrelated reason |
+| 9 | One rule file consumed by two regex engines with different dialects | An exemption silently did nothing; an unanchored one let a real address through |
 
 The full write-up, with the fix for each, is in
 [`docs/material/failure-modes-observed.md`](../docs/material/failure-modes-observed.md).
 
-Four things this list is evidence for:
+Five things this list is evidence for:
 
 **Tests being green is not coverage.** The suite passed at every stage. Removing
 a defence entirely and re-running the suite — mutation, not inspection — was what
