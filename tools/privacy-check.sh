@@ -209,38 +209,58 @@ fi
 
 validate_rules
 
+# The ignore list is loaded and applied in BOTH modes — explicit paths and a
+# whole-tree scan. Applying it to only one of them made the pre-commit hook,
+# which always passes explicit paths, disagree with a manual whole-tree run:
+# the manual run reported clean while the hook blocked on the same content.
+# Two code paths giving two answers about the same question is the defect,
+# regardless of which answer is correct.
+load_ignore_prefixes() {
+  local ignore="tools/privacy-check.ignore" line
+  [[ -r "$ignore" ]] || return 0
+  while IFS= read -r line; do
+    line="${line%%#*}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -n "$line" ]] || continue
+    # An ignore entry must be unambiguous: either a directory prefix (trailing
+    # slash) or an exact, existing file. An entry without a trailing slash that
+    # names a nonexistent path would silently over-match any sibling sharing
+    # that prefix — `v1` would also exempt `v1-old/`.
+    if [[ "$line" != */ && ! -f "$line" ]]; then
+      echo "privacy-check: invalid entry in $ignore: '${line}' (must end in / or name an existing file)" >&2
+      exit 2
+    fi
+    prefixes+=("$line")
+  done < "$ignore"
+}
+
+is_ignored() {
+  local f="$1" p
+  for p in ${prefixes[@]+"${prefixes[@]}"}; do
+    [[ "$f" == "$p"* ]] && return 0
+  done
+  return 1
+}
+
+root="$(git rev-parse --show-toplevel 2>/dev/null)" && cd "$root" || true
+
 files=()
+prefixes=()
+load_ignore_prefixes
+
 if [[ $# -gt 0 ]]; then
-  files=("$@")
+  for f in "$@"; do
+    # Normalise a path given relative to the caller's directory, so an ignore
+    # prefix compares against the same repository-relative form either mode
+    # produces.
+    rel="${f#./}"
+    rel="${rel#"$root/"}"
+    is_ignored "$rel" || files+=("$f")
+  done
 else
-  root="$(git rev-parse --show-toplevel)" || exit 2
-  cd "$root" || exit 2
-  ignore="tools/privacy-check.ignore"
-  prefixes=()
-  if [[ -r "$ignore" ]]; then
-    while IFS= read -r line; do
-      line="${line%%#*}"
-      line="${line#"${line%%[![:space:]]*}"}"
-      line="${line%"${line##*[![:space:]]}"}"
-      [[ -n "$line" ]] || continue
-      # An ignore entry must be unambiguous: either a directory prefix
-      # (trailing slash) or an exact, existing file. An entry without a
-      # trailing slash that names a nonexistent path would silently
-      # over-match any sibling path sharing that prefix (e.g. `v1` would
-      # also exempt `v1-old/`).
-      if [[ "$line" != */ && ! -f "$line" ]]; then
-        echo "privacy-check: invalid entry in $ignore: '${line}' (must end in / or name an existing file)" >&2
-        exit 2
-      fi
-      prefixes+=("$line")
-    done < "$ignore"
-  fi
   while IFS= read -r f; do
-    skip=0
-    for p in ${prefixes[@]+"${prefixes[@]}"}; do
-      if [[ "$f" == "$p"* ]]; then skip=1; break; fi
-    done
-    [[ $skip -eq 0 ]] && files+=("$f")
+    is_ignored "$f" || files+=("$f")
   done < <(git ls-files)
 fi
 

@@ -1,420 +1,129 @@
-# Second Brain -- Architecture Diagram
+# Architecture
 
-This document contains the full system architecture of the AI-powered Second Brain.
-
----
-
-## High-Level Overview
-
-```
- YOU (Human)
-  |
-  |  Telegram messages, voice notes,
-  |  links, photos, commands
-  |
-  v
-+======================== HETZNER VPS (CX22) ========================+
-|                                                                     |
-|  +-------------------+     +------------------------------------+   |
-|  |  TELEGRAM BOT     |     |  CLAUDE CODE (Agent Runtime)       |   |
-|  |  (Node.js)        |---->|                                    |   |
-|  |                   |     |  System Prompt + Tools + Memory     |   |
-|  |  - Receives msgs  |     |                                    |   |
-|  |  - Sends replies  |     |  +------------------------------+  |   |
-|  |  - Voice handling |     |  | AGENT PROFILES               |  |   |
-|  |  - File uploads   |     |  |                              |  |   |
-|  +-------------------+     |  |  - Chief of Staff            |  |   |
-|          ^                 |  |  - Librarian                 |  |   |
-|          |                 |  |  - Scout                     |  |   |
-|          |  responses      |  |  - Confidante                |  |   |
-|          |                 |  |  - Strategist                |  |   |
-|          +-----------------+  |  - Coder                     |  |   |
-|                            |  +------------------------------+  |   |
-|                            |                                    |   |
-|                            |  +------------------------------+  |   |
-|                            |  | TOOLS                        |  |   |
-|                            |  |                              |  |   |
-|                            |  |  - read_file                 |  |   |
-|                            |  |  - write_file                |  |   |
-|                            |  |  - search_vault              |  |   |
-|                            |  |  - list_directory            |  |   |
-|                            |  |  - run_script                |  |   |
-|                            |  |  - web_search                |  |   |
-|                            |  +------------------------------+  |   |
-|                            +------------------------------------+   |
-|                                        |                            |
-|                                        | reads/writes               |
-|                                        v                            |
-|  +--------------------------------------------------------------+   |
-|  |                    OBSIDIAN VAULT                             |   |
-|  |                    /home/alex/SecondBrain/                    |   |
-|  |                                                              |   |
-|  |  +------------+  +------------+  +-------------+             |   |
-|  |  | 10_Journal |  | 20_Projects|  | 11_Readings |             |   |
-|  |  |            |  |            |  |             |             |   |
-|  |  | Daily logs |  | Compass    |  | Books       |             |   |
-|  |  | Notes      |  | Atlas      |  | Articles    |             |   |
-|  |  | YYYY/MM/DD |  | Meetings   |  | Highlights  |             |   |
-|  |  +------------+  +------------+  +-------------+             |   |
-|  |                                                              |   |
-|  |  +------------+  +------------+  +-------------+             |   |
-|  |  | 05_Wisdom  |  | 30_Life    |  | 40_Network  |             |   |
-|  |  |            |  |            |  |             |             |   |
-|  |  | Insights   |  | Health/    |  | People/     |             |   |
-|  |  | Quotes     |  | Finances/  |  | PEOPLE_     |             |   |
-|  |  | Principles |  | Travel/    |  |  INDEX.md   |             |   |
-|  |  +------------+  +------------+  +-------------+             |   |
-|  |                                                              |   |
-|  |  +-------------------+  +----------------------------------+ |   |
-|  |  | 00_Start          |  | 99_Assets                        | |   |
-|  |  |                   |  |                                  | |   |
-|  |  | Inbox/            |  | Scripts/  Templates/             | |   |
-|  |  | Goals.md          |  | Agent_Profiles/                 | |   |
-|  |  | HABITS_TRACKER.md |  | wisdomizer.js                   | |   |
-|  |  | TASKS_DASHBOARD   |  | sync_people_index.js            | |   |
-|  |  +-------------------+  | sync_habits.js                  | |   |
-|  |                         +----------------------------------+ |   |
-|  |                                                              |   |
-|  |  Root files: IDENTITY.md, SOUL.md, SECURITY.md, AGENTS.md,  |   |
-|  |              TOOLS.md, HEARTBEAT.md, USER.md, MEMORY.md      |   |
-|  +--------------------------------------------------------------+   |
-|                         |                                           |
-|                         | git push (every 6h)                       |
-|                         v                                           |
-|  +--------------------+    +-------------------+                    |
-|  | GIT REMOTE         |    | HETZNER SERVER    |                    |
-|  | (GitHub/Gitea)     |    | SNAPSHOTS         |                    |
-|  |                    |    |                   |                    |
-|  | Full history       |    | Weekly full-disk  |                    |
-|  | of all changes     |    | backup            |                    |
-|  +--------------------+    +-------------------+                    |
-|                                                                     |
-+=========================== DOCKER NETWORK ==========================+
-          |
-          | Obsidian Git Sync (pull)
-          v
-+======================== YOUR LAPTOP / PHONE =======================+
-|                                                                     |
-|  +----------------------------+   +-----------------------------+   |
-|  |  OBSIDIAN                  |   |  TELEGRAM                   |   |
-|  |  (Desktop / Mobile)        |   |  (Mobile / Desktop)         |   |
-|  |                            |   |                             |   |
-|  |  - Browse vault            |   |  - Send messages            |   |
-|  |  - Edit notes              |   |  - Voice notes              |   |
-|  |  - Graph view              |   |  - Forward links            |   |
-|  |  - Search                  |   |  - Receive briefings        |   |
-|  |  - Review wisdom           |   |  - Quick capture            |   |
-|  |  - Habit tracking          |   |  - Journal prompts          |   |
-|  +----------------------------+   +-----------------------------+   |
-|                                                                     |
-+=====================================================================+
-```
+Plain ASCII throughout, so every diagram survives being pasted into a terminal, an
+issue, a chat window, or a slide. The two-layer diagram is canonical and appears
+byte-identically in the README.
 
 ---
 
-## Data Flow: Message Processing
+## 1. The two-layer model
 
 ```
-User sends Telegram message
-         |
-         v
-+------------------+
-| Telegram Bot API |
-| receives message |
-+--------+---------+
-         |
-         v
-+------------------+
-| Message Router   |  Determines message type:
-| (Agent Logic)    |  - Text, Voice, Photo, Link, Command
-+--------+---------+
-         |
-    +----+----+----+----+----+
-    |    |    |    |    |    |
-    v    v    v    v    v    v
-  Text Voice Photo Link Cmd  File
-    |    |    |    |    |    |
-    |    v    |    |    |    |
-    |  Whisper|    |    |    |
-    |  (STT)  |    |    |    |
-    |    |    |    |    |    |
-    +----+----+----+----+----+
-         |
-         v
-+------------------+
-| Intent Parser    |  Classifies intent:
-| (Claude/Gemini)  |  thought, todo, meal, reading, contact,
-+--------+---------+  journal, question, command
-         |
-    +----+----+----+----+----+
-    |    |    |    |    |    |
-    v    v    v    v    v    v
- Thought Todo  Meal Read  Contact Question
-    |    |    |    |    |    |
-    v    v    v    v    v    v
- 10_    20_  30_   11_  40_  Search
- Journal Proj Life  Read Netw vault
-    |    |    |    |    |    |
-    +----+----+----+----+----+
-         |
-         v
-+------------------+
-| Response Builder |  Confirms action to user
-+--------+---------+
-         |
-         v
-+------------------+
-| Telegram Reply   |  "Added to today's journal."
-+------------------+
+        AUTONOMOUS                        COLLABORATIVE
+        (runs without you)                (runs with you)
+
+  ┌────────────────────────┐        ┌────────────────────────┐
+  │ Agent runtime on a VPS │        │ Coding agent, local    │
+  │  · scheduled jobs      │        │  · builds capabilities │
+  │  · device and API syncs│        │  · refactors the vault │
+  │  · health checks       │        │  · edits the rules     │
+  │  · chat interface      │        │ Desktop agent with MCP │
+  │                        │        │  · reads live systems  │
+  └───────────┬────────────┘        └───────────┬────────────┘
+              │                                 │
+              └───────────────┬─────────────────┘
+                              │
+                  ┌───────────▼────────────┐
+                  │   THE VAULT            │  ← the only contract
+                  │   plain Markdown       │
+                  │   YAML frontmatter     │
+                  │   append-only JSONL    │
+                  │   git + file sync      │
+                  └───────────┬────────────┘
+                              │
+                  ┌───────────▼────────────┐
+                  │ Obsidian (you, reading)│
+                  └────────────────────────┘
 ```
 
----
+No arrow runs runtime to runtime. Every path goes through the file tree, which is what
+makes any single runtime replaceable without touching the other — the whole architecture
+in one property.
 
-## Scheduled Jobs Flow
+Detail: [chapter 02](../PART_1_PRINCIPLES/02_two-layers.md).
 
-```
-                     CRON / SYSTEMD TIMERS
-                              |
-         +--------------------+--------------------+
-         |                    |                    |
-         v                    v                    v
-   [00:00 Daily]       [02:00 Nightly]      [06:30 Morning]
-         |                    |                    |
-         v                    v                    v
-  Create tomorrow's    Run wisdomizer.js    Compile briefing:
-  journal template     Run sync_habits.js   - Today's schedule
-         |             Run sync_people.js   - Pending todos
-         v                    |             - Habit streaks
-  10_Journal/                 v             - Wisdom of day
-  YYYY/MM/DD.md        05_Wisdom/ (new)          |
-                       00_Start/                  v
-                        HABITS_TRACKER.md  Send via Telegram
-                       40_Network/
-                        PEOPLE_INDEX.md
-                              |
-                              v
-                     [00:15 Git Backup]
-                              |
-                              v
-                     git add + commit + push
-                              |
-                              v
-                     Remote repository
+## 2. The capture pipeline
 
-         +--------------------+--------------------+
-         |                    |                    |
-   [Weekly: Monday]    [Weekly: Wednesday]  [Weekly: Sunday]
-         |                    |                    |
-         v                    v                    v
-   Network check       Intelligence         Hetzner server
-   (stale contacts)    briefing              snapshot
-                       (knowledge synthesis)
-```
-
----
-
-## Docker Container Layout
+Each arrow is labelled with the contract it satisfies, not with a verb — because what
+travels between stages is a file, never a call.
 
 ```
-+=================== docker-compose.yml ====================+
-|                                                            |
-|  +------------------+     +---------------------------+    |
-|  | telegram-bot     |     | agent-core                |    |
-|  | (Node.js 20)     |<--->| (Claude Code / Python)    |    |
-|  |                  |     |                           |    |
-|  | Port: internal   |     | Env:                      |    |
-|  | Env:             |     |  GEMINI_API_KEY            |    |
-|  |  BOT_TOKEN       |     |  ANTHROPIC_API_KEY         |    |
-|  |  AGENT_URL       |     |  VAULT_PATH                |    |
-|  +------------------+     +---------------------------+    |
-|           |                          |                     |
-|           |    +---------------------+                     |
-|           |    |                                           |
-|           v    v                                           |
-|  +--------------------------------------------------+     |
-|  | vault-data (Docker Volume)                        |     |
-|  |                                                   |     |
-|  | Mounted at: /home/alex/SecondBrain                |     |
-|  | Backed by:  Hetzner Volume (/dev/sdb1)            |     |
-|  +--------------------------------------------------+     |
-|                                                            |
-|  +------------------+     +---------------------------+    |
-|  | watchtower       |     | cron-runner               |    |
-|  | (Auto-updates)   |     | (Scheduled jobs)          |    |
-|  |                  |     |                           |    |
-|  | Monitors all     |     | - Git backup (6h)         |    |
-|  | containers       |     | - Nightly scripts (00:00) |    |
-|  | Weekly check     |     | - Morning briefing (6:30) |    |
-|  +------------------+     +---------------------------+    |
-|                                                            |
-+============================================================+
-
-Network: secondbrain-net (bridge)
-All containers communicate on internal network.
-Only telegram-bot has external API access.
+  anything                                        something you reread
+      │                                                    ▲
+      ▼                                                    │
+  ┌────────┐   ┌──────────┐   ┌────────┐   ┌─────────┐  ┌──┴───┐
+  │ inbox  │──▶│ classify │──▶│  file  │──▶│  link   │─▶│distil│
+  └────────┘   └──────────┘   └────────┘   └─────────┘  └──┬───┘
+   a file       a decision      a path      a graph        │
+   exists       recorded        that is     that is     ┌──▼───┐
+                                stable     traversable │deepen│
+                                                        └──┬───┘
+                                                        ┌──▼───┐
+                                                        │compile│
+                                                        └──────┘
 ```
 
----
+Detail: [chapter 13](../PART_3_SKILLS/13_composing-pipelines.md).
 
-## Security Boundary Diagram
+## 3. The sensor loop
 
-```
-                        INTERNET
-                           |
-                      [ Firewall ]
-                      UFW Rules:
-                      - 22/tcp (SSH)
-                      - 443/tcp (HTTPS)
-                      - DROP all other
-                           |
-                    +------+------+
-                    |             |
-                    v             v
-              [ fail2ban ]   [ SSH ]
-              Ban after      Key-only auth
-              3 failures     No passwords
-              24h ban        No root login
-                    |
-                    v
-         +-------------------+
-         | Docker Network    |
-         | (isolated bridge) |
-         |                   |
-         | Containers only   |
-         | talk to each      |
-         | other + Telegram  |
-         | API               |
-         +-------------------+
-                    |
-                    v
-         +-------------------+
-         | Vault Data        |
-         |                   |
-         | - File perms 600  |
-         | - Owned by alex   |
-         | - Git-encrypted   |
-         |   sensitive files |
-         | - .env files NOT  |
-         |   in git          |
-         +-------------------+
-                    |
-                    v
-         +-------------------+
-         | API Keys          |
-         |                   |
-         | Stored in:        |
-         | ~/.env.secondbrain|
-         | (chmod 600)       |
-         |                   |
-         | NEVER in:         |
-         | - Git repo        |
-         | - Vault files     |
-         | - Docker images   |
-         +-------------------+
-```
-
----
-
-## Vault Folder Structure (Complete)
+Marked with the property that makes each hop safe to repeat.
 
 ```
-SecondBrain/
-|
-+-- IDENTITY.md                    <- System identity and role
-+-- SOUL.md                        <- Core values and principles
-+-- SECURITY.md                    <- Security rules for agents
-+-- AGENTS.md                      <- Agent registry
-+-- TOOLS.md                       <- Tool definitions
-+-- HEARTBEAT.md                   <- System health status
-+-- USER.md                        <- User profile and preferences
-+-- MEMORY.md                      <- Persistent agent memory
-|
-+-- 00_Start/
-|   +-- Inbox/                     <- Uncategorized captures land here
-|   +-- Goals.md
-|   +-- HABITS_TRACKER.md          <- Auto-generated by sync_habits.js
-|   +-- TASKS_DASHBOARD.md
-|   +-- MASTER_TODOS_Private.md
-|   +-- Calendar.md
-|
-+-- 05_Wisdom/
-|   +-- {Category}/                <- Organized by topic
-|   +-- Quotes/
-|   |   +-- MASTER_QUOTES.md
-|   +-- WISDOM_INDEX.md
-|
-+-- 10_Journal/
-|   +-- Notes/
-|   +-- 2026/
-|       +-- 02/
-|           +-- 2026-02-20.md      <- Daily journal entries
-|           +-- 2026-02-19.md
-|           +-- ...
-|
-+-- 11_Readings/
-|   +-- Tech_AI/
-|   +-- Business_Leadership/
-|   +-- Design_Product/
-|   +-- ...                        <- Reading notes by category
-|
-+-- 12_Podcasts/
-|   +-- Snipd/
-|       +-- Data/
-|           +-- {Show}/
-|               +-- {Episode}.md
-|
-+-- 20_Projects/
-|   +-- {Company}/
-|   |   +-- Notes/
-|   |   +-- People/
-|   |   +-- Meetings/
-|   |   +-- Tech/
-|   +-- ...
-|
-+-- 30_Life/
-|   +-- Health/
-|   +-- Finances/
-|   +-- Travel/
-|   +-- Intimate/
-|   +-- Lists/
-|   +-- Recipes/
-|   +-- Notes/
-|
-+-- 40_Network/
-|   +-- People/
-|   |   +-- Kim_Sarah.md
-|   |   +-- Weber_Marcus.md
-|   |   +-- Patel_Priya.md
-|   |   +-- Park_David.md
-|   +-- PEOPLE_INDEX.md            <- Auto-generated by sync_people_index.js
-|
-+-- 90_Archive/
-|   +-- Projects/
-|   +-- Readings/
-|   +-- Areas/
-|
-+-- 99_Assets/
-|   +-- Scripts/
-|   |   +-- wisdomizer.js
-|   |   +-- sync_people_index.js
-|   |   +-- sync_habits.js
-|   |   +-- git_backup.sh
-|   |   +-- build_index.sh
-|   +-- Templates/
-|   |   +-- daily_journal.md
-|   |   +-- reading_note.md
-|   |   +-- contact.md
-|   |   +-- project.md
-|   +-- Agent_Profiles/
-|   +-- Images/
-|   +-- Images_Private/
-|   +-- Transcripts/
-|   +-- Attachments/
-|   +-- Processed/
-|
-+-- memory/
+  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────────┐
+  │  device  │───▶│  vendor  │───▶│   sync   │───▶│ measurements │
+  │          │    │   API    │    │   job    │    │ .jsonl       │
+  └──────────┘    └──────────┘    └────┬─────┘    └──────┬───────┘
+     you wear it     you don't        │ scheduled       │ append-only
+                     control it       │ idempotent      │
+                                      │                 │
+                                      ▼                 │
+                              ┌──────────────┐          │
+                              │ day's note   │          │
+                              │ ## Device    │          │
+                              │ + #habit/... │          │
+                              └──────┬───────┘          │
+                                 idempotent             │
+                                 via marker             │
+                                      │                 │
+                                      └────────┬────────┘
+                                               │
+                                        ┌──────▼───────┐
+                                        │  dashboard   │
+                                        │  query block │
+                                        └──────────────┘
+                                          derived, never edited
 ```
 
----
+Detail: [chapter 14](../PART_4_SENSORS/14_the-sensor-loop.md).
 
-*This architecture diagram is part of the [Second Brain Guide](../README.md). For setup instructions, start with [Chapter 1](../01_SERVER_SETUP.md).*
+## 4. Where the watchdog sits
+
+```
+   ┌───────────────┐        ┌───────────────┐
+   │ scheduled job │        │ scheduled job │
+   └───────┬───────┘        └───────┬───────┘
+           │  writes                │  writes
+           └────────────┬───────────┘
+                        ▼
+              ┌───────────────────┐
+              │    THE VAULT      │
+              └─────────┬─────────┘
+                        │  reads
+                        ▼
+              ┌───────────────────┐        ┌──────────────┐
+              │     watchdog      │───────▶│  you, alerted│
+              │  every 15 min     │        └──────────────┘
+              └───────────────────┘
+                        │  also writes
+                        ▼
+              ┌───────────────────┐
+              │ system_health.md  │  ← so the agent can read its own status
+              └───────────────────┘
+```
+
+The arrow points at the vault, not at the jobs. A job's exit code reports whether it
+ran, and every interesting failure in this system is one where the job ran and exited
+zero.
+
+Detail: [chapter 21](../PART_5_TRUST/21_the-watchdog.md).

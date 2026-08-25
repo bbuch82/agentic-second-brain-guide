@@ -3,7 +3,7 @@
 Raw material for Part 5, chapter 20. Every entry below was observed while
 building this repository, not imagined for it. Chapter 20 argues that the
 failures worth catching in an agentic system are the ones that exit zero; the
-entries here are the evidence, and all nine come from a single tool whose only
+entries here are the evidence, and all ten come from a single tool whose only
 job is to block.
 
 Add to this file whenever a real failure is found. Do not invent entries.
@@ -14,7 +14,7 @@ Add to this file whenever a real failure is found. Do not invent entries.
 
 `tools/privacy-check.sh` scans the repository for strings that must never be
 published and blocks the commit. It is the smallest possible security gate:
-one input file of rules, one output signal, one decision. It shipped with nine
+one input file of rules, one output signal, one decision. It shipped with ten
 distinct ways to report success while failing.
 
 ## 1. Word-boundary syntax that silently matched nothing
@@ -189,6 +189,25 @@ it needs a test in *both* directions — that the example passes and that the re
 thing still fails. Testing only the former is how the second bug shipped. Every
 exemption added to a security gate should arrive with the negative case beside it.
 
+## 10. The gate and its manual invocation disagreed
+
+**Symptom:** a whole-tree scan reported clean; the pre-commit hook blocked the same
+content moments later.
+
+**Mechanism:** the exemption list — the file naming paths the scan should skip — was
+loaded only on the code path that discovers files itself. The hook always passes
+explicit paths, which took the other branch, where the list was never read. So the two
+invocations were answering the same question with two different rule sets.
+
+**Fix:** load and apply the exemption list in both modes, and normalise the path form
+so a prefix compares against the same repository-relative string either way.
+
+**Lesson:** the defect is not that one answer was wrong. It is that a gate and its
+manual invocation could disagree at all. Where a check has two entry points, the
+configuration has to be resolved before the branch, not inside it — and the version
+that matters is the automated one, which is also the one nobody runs by hand while
+developing.
+
 ---
 
 ## The unreadable file
@@ -207,7 +226,7 @@ general form of every entry above.
 
 ## What this collection is for
 
-Nine fail-open paths in roughly two hundred lines of shell whose single
+Ten fail-open paths in roughly two hundred lines of shell whose single
 purpose is to say no. Not written carelessly — written with tests from the
 first commit, reviewed by a second party, and hardened twice. The tests passed
 at every stage. Every one of these was found by asking a different question:

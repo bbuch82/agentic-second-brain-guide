@@ -1,0 +1,3 @@
+# Link targets scheduled for a later stage, as repository-relative paths.
+# This file MUST be empty before publication: a non-empty allowlist means the
+# guide links to something that was never written.
