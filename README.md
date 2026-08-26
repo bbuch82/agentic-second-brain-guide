@@ -194,7 +194,7 @@ entirely.
 | [1 — Principles](./PART_1_PRINCIPLES/README.md) | 01–04 | Why a file tree, why two layers, governance as code, and where this loses |
 | [2 — Build](./PART_2_BUILD/README.md) | 05–08 | Four stages, each useful on its own, from thirty minutes to a full installation |
 | [3 — Skills](./PART_3_SKILLS/README.md) | 09–13 | Capabilities as versioned artifacts, four patterns with code, composing them |
-| [4 — Sensors and Dashboards](./PART_4_SENSORS/README.md) | 14–19 | Device API to query block, complete, with six runnable dashboards |
+| [4 — Sensors and Dashboards](./PART_4_SENSORS/README.md) | 14–19 | Device API to query block, complete, with ten runnable dashboards |
 | [5 — Trust](./PART_5_TRUST/README.md) | 20–23 | Nine real failure modes, the watchdog, idempotency, runbooks |
 | [6 — Operate](./PART_6_OPERATE/README.md) | 24–27 | Scale, cost, privacy, and what is still wrong |
 | [7 — Life OS](./PART_7_LIFE_OS/README.md) | 28–29 | When the system speaks first: health, habits, birthdays, self-writing journals |

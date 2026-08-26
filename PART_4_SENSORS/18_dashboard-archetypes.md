@@ -1,6 +1,6 @@
 # 18 — Dashboard Archetypes
 
-Six dashboards, each a different shape of question, each complete and runnable
+Ten dashboards, each a different shape of question, each complete and runnable
 against the log format from chapter 15. Copy them, change the field names, delete
 the ones that do not apply to you.
 
@@ -377,25 +377,270 @@ actually started, in the file, and leave it there when the number is
 unflattering. A progress bar measured from a baseline you keep adjusting is a
 mood ring.
 
+## 7. Rolling window — making a boolean readable
+
+The question: *is this habit trending up or down?* Plotted raw, a yes/no series is a
+picket fence that shows nothing. A rolling count over a window turns it into a line.
+
+````markdown
+```dataviewjs
+const HABITS = ["movement", "reading", "focus", "nutrition"];
+const COLORS = ["#16a34a", "#8b5cf6", "#f59e0b", "#06b6d4"];
+const DAYS = 90;
+const WINDOW = 7;
+
+const since = new Date(); since.setDate(since.getDate() - DAYS - WINDOW);
+const sinceKey = since.toISOString().slice(0, 10);
+
+const byDay = {};
+for (const page of dv.pages('"10_Journal"')) {
+  const name = page.file.name;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(name) || name < sinceKey) continue;
+  const set = new Set();
+  for (const tag of page.file.etags ?? []) {
+    const m = tag.match(/^#habit\/(.+)$/);
+    if (m) set.add(m[1].toLowerCase());
+  }
+  byDay[name] = set;
+}
+
+const labels = [];
+const series = HABITS.map(() => []);
+for (let i = DAYS - 1; i >= 0; i--) {
+  const d = new Date(); d.setDate(d.getDate() - i);
+  labels.push(d.toISOString().slice(0, 10).slice(5));
+  for (let h = 0; h < HABITS.length; h++) {
+    let count = 0;
+    for (let j = 0; j < WINDOW; j++) {
+      const w = new Date(d); w.setDate(w.getDate() - j);
+      if (byDay[w.toISOString().slice(0, 10)]?.has(HABITS[h])) count += 1;
+    }
+    series[h].push(count);
+  }
+}
+
+window.renderChart({
+  type: "line",
+  data: {
+    labels,
+    datasets: HABITS.map((h, i) => ({
+      label: h, data: series[i],
+      borderColor: COLORS[i], backgroundColor: COLORS[i],
+      tension: 0.25, pointRadius: 0, borderWidth: 2,
+    })),
+  },
+  options: {
+    scales: { y: { beginAtZero: true, max: WINDOW,
+      title: { display: true, text: `Days in a ${WINDOW}-day window` } } },
+    plugins: { legend: { position: "bottom" } },
+  },
+}, this.container);
+```
+````
+
+Three details carry it:
+
+**The axis is capped at the window size and says so.** "Days in a 7-day window" is
+immediately readable; an uncapped axis labelled "count" is not.
+
+**Load `WINDOW` extra days of history.** Without it the first week of the chart is
+computed from a partial window and slopes up from zero — an artefact that looks exactly
+like a real improvement.
+
+**Four series, not fifteen.** Past four or five lines the legend becomes the chart. Pick
+the ones you are actually trying to move.
+
+The technique generalises to anything binary and daily: did you ship, did you practise,
+did you go outside.
+
+## 8. The matrix — one row per day, navigable
+
+The question: *what actually happened, day by day?* The heatmap in archetype 5 answers a
+year at a glance; this answers a month in detail, and every row is a link.
+
+````markdown
+```dataviewjs
+const HABITS = [
+  ["movement", "🏃"], ["sleep", "😴"], ["reading", "📚"],
+  ["focus", "💼"], ["nutrition", "🥗"], ["screenfree", "📱"],
+];
+const MONTHS = 3;
+
+const byDate = new Map();
+for (const page of dv.pages('"10_Journal"')) {
+  const name = page.file.name;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(name)) continue;
+  const set = new Set();
+  for (const tag of page.file.etags ?? []) {
+    const m = tag.match(/^#habit\/(.+)$/);
+    if (m) set.add(m[1].toLowerCase());
+  }
+  byDate.set(name, set);
+}
+
+const months = [...new Set([...byDate.keys()].map((d) => d.slice(0, 7)))]
+  .sort().reverse().slice(0, MONTHS);
+
+for (const ym of months) {
+  const [year, month] = ym.split("-");
+  dv.header(3, new Date(+year, +month - 1)
+    .toLocaleDateString(undefined, { month: "long", year: "numeric" }));
+
+  const lastDay = new Date(+year, +month, 0).getDate();
+  const rows = [];
+  for (let d = 1; d <= lastDay; d++) {
+    const key = `${ym}-${String(d).padStart(2, "0")}`;
+    const habits = byDate.get(key) || new Set();
+    // The day cell links to the journal entry, with a short display label.
+    rows.push([
+      dv.fileLink(key, false, String(d).padStart(2, "0")),
+      ...HABITS.map(([k]) => habits.has(k) ? "✅" : "·"),
+    ]);
+  }
+  dv.table(["Day", ...HABITS.map(([, icon]) => icon)], rows);
+}
+```
+````
+
+**The linked day cell is the point.** A grid that shows a gap is mildly interesting; a
+grid where you click the gap and land in that day's note is how you find out *why*. This
+is the only archetype here that is a navigation surface rather than a readout.
+
+**Iterate the calendar, not the data.** Looping days 1 to `lastDay` means days with no
+note appear as empty rows rather than vanishing. A matrix built from the records you have
+silently hides the days you skipped, which are the ones worth seeing.
+
+**Emoji as column headers**, because fifteen text labels do not fit and a legend above the
+table does the explaining. This is the one place emoji are data rather than decoration.
+
+## 9. State-coloured bars — colour as a category
+
+The question: *what did the system think on each of those days?* When a vendor supplies
+both a score and its own classification of that score, encode the classification in the
+bar colour rather than adding a second series.
+
+````markdown
+```dataviewjs
+const days = (await loadDerived()).filter((d) => {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+  return d.date >= cutoff.toISOString().slice(0, 10);
+});
+
+const colour = (level) =>
+  level === "HIGH" || level === "PRIME" ? "#16a34a"
+  : level === "MODERATE"                ? "#f59e0b"
+  : "#ef4444";
+
+window.renderChart({
+  type: "bar",
+  data: {
+    labels: days.map((d) => d.date.slice(5)),
+    datasets: [{
+      label: "Readiness",
+      data: days.map((d) => d.readiness_score ?? null),
+      backgroundColor: days.map((d) => colour(d.readiness_level)),
+    }],
+  },
+  options: {
+    plugins: {
+      legend: { display: false },
+      title: { display: true,
+        text: "Readiness — green: ready · amber: moderate · red: recover" },
+    },
+    scales: { y: { min: 0, max: 100 } },
+  },
+}, this.container);
+```
+````
+
+**One dataset, per-bar colours.** `backgroundColor` accepts an array, one entry per point.
+Splitting into three datasets by level would work and would produce gaps in each series.
+
+**Legend off, meaning in the title.** A legend for a single dataset says "Readiness",
+which you already knew. The colour key is what needs explaining, and the title is where it
+fits.
+
+**A fixed `0–100` scale.** Letting a bounded score auto-scale makes a quiet fortnight look
+dramatic, which is the most common way a chart misleads its own author.
+
+## 10. Latest-value card — a summary over a sparse log
+
+The question: *what is the current standing?* Harder than it sounds when the log is sparse:
+different fields were last written on different days, because the vendor computes them on
+different schedules.
+
+````markdown
+```dataviewjs
+const days = await loadDerived();
+
+// Each field independently: the newest record where it is present. A single
+// "latest record" would show blanks for everything not computed that day.
+const latest = (field) => [...days].reverse().find((d) => d[field] != null);
+
+const fmtTime = (s) => {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return (h ? `${h}:${String(m).padStart(2, "0")}` : m)
+    + ":" + String(Math.round(s % 60)).padStart(2, "0");
+};
+
+const rows = [];
+const add = (label, field, render) => {
+  const row = latest(field);
+  if (row) rows.push([label, `${render(row)} — as of ${row.date}`]);
+};
+
+add("Fitness estimate", "vo2max", (r) => r.vo2max);
+add("Fitness age",      "fitness_age", (r) => `${r.fitness_age} years`);
+add("Weight",           "weight_kg", (r) => `${r.weight_kg} kg`);
+add("Endurance",        "endurance_score", (r) => r.endurance_score);
+add("Race predictions", "race", (r) =>
+  `5K ${fmtTime(r.race.time5K)} · 10K ${fmtTime(r.race.time10K)} · HM ${fmtTime(r.race.timeHalfMarathon)}`);
+
+dv.table(["", ""], rows);
+```
+````
+
+Three properties worth stealing:
+
+**Per-field recency, not per-record.** `latest(field)` scans backwards for the newest
+record where *that* field exists. Reading the last line of the log instead would blank out
+every field the vendor did not compute today.
+
+**Every value carries its own date.** A stale figure and a fresh one look identical
+otherwise, and vendor-derived fields go stale silently — the exact failure chapter 20
+catalogues, surfaced in the one place you would notice.
+
+**Rows appear only when they have data.** A card with five empty rows reads as broken; a
+card with two rows reads as early days.
+
 ---
 
 ## Choosing which to build
 
-Do not build all six. Build in this order and stop when the next one has no
-question attached to it:
+Do not build all ten. Build in this order and stop when the next one has no question
+attached to it:
 
 | Order | Archetype | Build it when |
 |---|---|---|
 | 1 | Dual-axis load vs recovery | You want to make a decision today |
 | 2 | KPI table | You want a weekly glance |
 | 3 | Streaks | You have habits with no sensor |
-| 4 | Efficiency | You have at least three months of comparable data |
-| 5 | Stacked weekly bars | The mix matters, not just the total |
-| 6 | Goal progress | You have a goal with a real baseline |
+| 4 | Matrix | You want to click a bad day and find out why |
+| 5 | Latest-value card | Your log is sparse and you want a standing |
+| 6 | Rolling window | A habit has enough history to have a direction |
+| 7 | Efficiency | You have at least three months of comparable data |
+| 8 | Stacked weekly bars | The mix matters, not just the total |
+| 9 | State-coloured bars | A vendor supplies both a score and a verdict |
+| 10 | Goal progress | You have a goal with a real baseline |
 
-The efficiency chart in particular needs history to say anything. Building it in
-week two produces a jagged line across four points, and a chart that says nothing
-for three months teaches you to stop opening the page.
+The efficiency chart in particular needs history to say anything. Building it in week two
+produces a jagged line across four points, and a chart that says nothing for three months
+teaches you to stop opening the page.
+
+Two of these are worth more than their position suggests. The **matrix** is the only one
+that leads somewhere — every other archetype ends the enquiry, and that one starts it. And
+the **rolling window** is the only honest way to look at a habit, because a raw yes/no
+series cannot show a trend and a streak counter only shows the present.
 
 ---
 

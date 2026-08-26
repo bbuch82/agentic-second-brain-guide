@@ -29,7 +29,7 @@ implementation, sometimes tests, and a dated design document recording what was
 rejected and why.
 
 **A new part on sensors and dashboards.** The complete loop from a device API through
-append-only logs and habit tags to six runnable query blocks. Documented nowhere else in
+append-only logs and habit tags to ten runnable query blocks. Documented nowhere else in
 one piece, and the reason the whole system beats a vendor app: the join.
 
 **A new part on trust.** Nine real failure modes with symptom, cause and fix; the
