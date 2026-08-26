@@ -29,7 +29,7 @@ decision that otherwise stops you capturing at all.
 | Skill | Trigger | Code | Writes |
 |---|---|---|---|
 | `process-meetings` | A transcript appears | Spec | `<Area>/Meetings/`, plus journal and people links |
-| `add-contact` | A new person is mentioned | Spec | `40_Network/People/Lastname_Firstname.md` |
+| `add-contact` | A new person is mentioned | Spec | `40_Network/People/First Last.md` |
 | `sync-people-index` | After any person change | Yes | `40_Network/PEOPLE_INDEX.md`, regenerated |
 | `contacts-import` | Manual, after an export | Yes | Guarded blocks in person notes |
 

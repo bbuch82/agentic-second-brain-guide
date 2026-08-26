@@ -8,7 +8,7 @@ each line.
 | Kind | Pattern |
 |---|---|
 | Daily note | `YYYY-MM-DD.md`, under `10_Journal/YYYY/MM/` |
-| Person | `Lastname_Firstname.md` |
+| Person | `First Last.md` |
 | Reading | `YYYY-MM-DD-kebab-title.md` |
 | Concept note | `kebab-title.md`, no date |
 | Meeting | `YYYY-MM-DD Short Title.md` |

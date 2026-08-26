@@ -18,7 +18,7 @@ four families, and knowing the family tells you what a new check should look lik
 | **Freshness** | Did a file that should have changed recently change? | The measurement log is newer than 26 hours |
 | **Integrity** | Does everything that should parse, parse? | Every note's frontmatter is valid YAML |
 | **Completeness** | Does every unit of work carry its completion marker? | Every finished day has a generated journal section |
-| **Capacity** | Is there room and is the runtime alive? | Disk above a floor; the container is running |
+| **Capacity** | Is there room, and is everything that should be alive alive? | Disk above a floor; both containers running; the sync peer's own process alive |
 
 Freshness catches the silent outage. Integrity catches the silent corruption.
 Completeness catches the silent skip. Capacity catches the boring failures that
@@ -130,6 +130,41 @@ That generalises into a rule: **a new check baselines what already exists and
 alarms only on what happens after it.** The same applies to accumulating
 artifacts — count the conflict files present on first run, store the count, and
 alarm on increases.
+
+### The check that needs two assertions
+
+Most capacity checks are one question. The sync peer is two, because a headless editor
+can leave its container running with the application inside it dead — the black-screen
+state from chapter 07. A container check passes; sync has been down for hours.
+
+```python
+def check_sync_peer(container: str = "editor") -> Result:
+    """Container up AND the application process inside it alive."""
+    running = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", container],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    if running != "true":
+        return Result("sync-peer", False, "container not running")
+
+    procs = subprocess.run(
+        ["docker", "exec", container, "pgrep", "-c", "-f", "obsidian"],
+        capture_output=True, text=True,
+    )
+    alive = procs.returncode == 0 and int(procs.stdout.strip() or 0) > 0
+    return Result("sync-peer", alive,
+                  "container and app alive" if alive else "container up, app dead")
+```
+
+The pattern generalises past this one container: **whenever a process supervises another,
+check the inner one.** A supervisor reporting health about itself is the same
+success-shaped failure as an exit code.
+
+There is a second half to this that a check cannot cover. Sync can also stall while both
+container and application are perfectly alive — the queue simply stops draining, with no
+error anywhere. The only reliable detection is comparing file counts across peers, which
+is a human diagnostic rather than an assertion. Chapter 23 has the procedure, and the
+nightly restart in chapter 07 is the prophylaxis.
 
 ## Alert cadence
 

@@ -3,8 +3,8 @@
 Raw material for Part 5, chapter 20. Every entry below was observed while
 building this repository, not imagined for it. Chapter 20 argues that the
 failures worth catching in an agentic system are the ones that exit zero; the
-entries here are the evidence, and all ten come from a single tool whose only
-job is to block.
+entries here are the evidence, ten of the eleven come from a single tool whose only job is to
+block; the eleventh comes from a sync migration.
 
 Add to this file whenever a real failure is found. Do not invent entries.
 
@@ -207,6 +207,35 @@ manual invocation could disagree at all. Where a check has two entry points, the
 configuration has to be resolved before the branch, not inside it — and the version
 that matters is the automated one, which is also the one nobody runs by hand while
 developing.
+
+## 11. The fix that broadcast its own debris
+
+Not from the checker — from a sync migration. Included because it is the cleanest example
+in this collection of a change making the exact problem it was meant to solve worse.
+
+**Symptom:** empty governance files appearing on a laptop and a phone, in a tree that had
+just been reorganised specifically so those files would no longer be there.
+
+**Mechanism:** the goal was to keep the agent's configuration out of the synced vault. The
+first attempt kept the vault as the container's workspace root and mounted the agent's
+files in over the top. Docker creates a mount point before mounting onto it — so a
+zero-byte `IDENTITY.md` and an empty `skills/` appeared **inside the vault**, as real
+files on the host. Sync then did its job faithfully and distributed them everywhere.
+
+**Fix:** invert the direction. The agent layer becomes the workspace root, and the content
+directories are mounted into it, one line each. Mount-point stubs still appear — but in
+the unsynced layer, where nothing sees them.
+
+**Lesson:** when overlaying two trees, the *unsynced* one must be the root. Its litter is
+invisible; the synced one's is broadcast. More generally: a change that touches the
+boundary between two systems needs testing on both sides of it, and "did the files end up
+where I wanted" is only half the question — the other half is what appeared where I was
+not looking.
+
+**Second lesson, cheaper to learn here than later:** the consequence was a new operational
+rule, not just a fix. A new top-level content directory now needs its own mount line and a
+container recreate, or the agent cannot see it. That kind of rule is invisible in the
+architecture and obvious in a runbook, which is where it went.
 
 ---
 

@@ -36,7 +36,7 @@ git init && git add -A && git commit -m "Empty vault skeleton"
 | `11_Readings/` | Articles, books, papers, video notes |
 | `20_Areas/` | Ongoing responsibilities: a job, a mandate, a side project |
 | `30_Life/` | Health, finances, travel |
-| `40_Network/People/` | One note per person, `Lastname_Firstname.md` |
+| `40_Network/People/` | One note per person, `First Last.md` |
 | `90_Archive/` | Finished things. Queries exclude it |
 | `99_Assets/Templates/` | Frontmatter templates |
 | `memory/` | Agent state and append-only logs |
@@ -112,7 +112,7 @@ And the convention file the agent reads, `99_Assets/Templates/CONVENTIONS.md`:
 
 ## Filenames
 - Daily: `YYYY-MM-DD.md`
-- People: `Lastname_Firstname.md`
+- People: `First Last.md`
 - Readings: `YYYY-MM-DD-kebab-title.md`
 - Concepts: `kebab-title.md`, no date
 
@@ -151,7 +151,7 @@ A message beginning with a known prefix.
 | `n:` | A note or idea | New file in `00_Start/Inbox/` |
 | `t:` | A task | Append `- [ ] <text> #todo` to `00_Start/Tasks.md` |
 | `q:` | A quote worth keeping | New file in `05_Wisdom/` |
-| `p:` | A person to remember | `40_Network/People/Lastname_Firstname.md` |
+| `p:` | A person to remember | `40_Network/People/First Last.md` |
 
 ## Outputs
 The file, with full frontmatter per CONVENTIONS.md. Nothing else.

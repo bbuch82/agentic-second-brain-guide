@@ -105,7 +105,7 @@ Trigger: a prefixed message.
 | `n:` | `00_Start/Inbox/` |
 | `t:` | append `- [ ] <text> #todo` to `00_Start/Tasks.md` |
 | `q:` | `05_Wisdom/` |
-| `p:` | `40_Network/People/Lastname_Firstname.md`, full template |
+| `p:` | `40_Network/People/First Last.md`, full template |
 ```
 
 **What breaks when this is vague:** three formats for the same kind of note, and a

@@ -14,7 +14,7 @@ A message beginning with a known prefix.
 | `n:` | A note or idea | New file in `00_Start/Inbox/` |
 | `t:` | A task | Append `- [ ] <text> #todo` to `00_Start/Tasks.md` |
 | `q:` | A quote worth keeping | New file in `05_Wisdom/` |
-| `p:` | A person to remember | `40_Network/People/Lastname_Firstname.md` |
+| `p:` | A person to remember | `40_Network/People/First Last.md` |
 
 ## Outputs
 The destination file, with full frontmatter per

@@ -15,7 +15,7 @@ The difference is not which agent you pick. It is that the data format is the co
 the runtimes are replaceable clients, the rules live in files, and the failures that
 matter exit zero — so you build something that watches for them.
 
-This guide is the architecture, the code, and the operational practice. Twenty-seven
+This guide is the architecture, the code, and the operational practice. Twenty-nine
 chapters, all written.
 
 ## Scale
@@ -73,6 +73,7 @@ diagrams — the capture pipeline, the sensor loop, the watchdog's position — 
 | Understand the model | [Part 1 — Principles](./PART_1_PRINCIPLES/README.md) | Four chapters, no commands. Transferable to any stack |
 | Build it | [Quickstart](#quickstart), then [the full install](#the-full-install) | Thirty minutes with no server, then the autonomous layer |
 | Operate it | [Part 5 — Trust](./PART_5_TRUST/README.md) and [Part 6 — Operate](./PART_6_OPERATE/README.md) | The failures, the monitoring, the real costs |
+| See where it goes | [Part 7 — Life OS](./PART_7_LIFE_OS/README.md) | Health, habits, birthdays, and a journal that assembles itself |
 
 ## Quickstart
 
@@ -182,7 +183,9 @@ watchdog before the third scheduled job — that is the whole argument of
 [Part 5](./PART_5_TRUST/README.md).
 
 Getting the vault onto your laptop and phone without the two copies fighting is
-[chapter 07](./PART_2_BUILD/07_stage-2-close-the-loop.md).
+[chapter 07](./PART_2_BUILD/07_stage-2-close-the-loop.md) — a headless editor on the
+server as a sync peer, plus the split that keeps the governance files off your devices
+entirely.
 
 ## Contents
 
@@ -194,6 +197,7 @@ Getting the vault onto your laptop and phone without the two copies fighting is
 | [4 — Sensors and Dashboards](./PART_4_SENSORS/README.md) | 14–19 | Device API to query block, complete, with six runnable dashboards |
 | [5 — Trust](./PART_5_TRUST/README.md) | 20–23 | Nine real failure modes, the watchdog, idempotency, runbooks |
 | [6 — Operate](./PART_6_OPERATE/README.md) | 24–27 | Scale, cost, privacy, and what is still wrong |
+| [7 — Life OS](./PART_7_LIFE_OS/README.md) | 28–29 | When the system speaks first: health, habits, birthdays, self-writing journals |
 
 ## Prerequisites
 
@@ -204,6 +208,7 @@ Getting the vault onto your laptop and phone without the two copies fighting is
 | An API key for a model provider | The autonomous layer | Usage-based |
 | A messaging account with a bot API | The chat interface | Free |
 | Obsidian, with Dataview and Charts | Part 4's dashboards | Free |
+| A sync service for your editor | Chapter 07's transport | Subscription, or run a file syncer instead |
 
 ## What this is not
 

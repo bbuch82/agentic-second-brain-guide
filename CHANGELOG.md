@@ -2,6 +2,15 @@
 
 ## v2 — 2026
 
+**Later additions (2026-08-26).** Chapter 07 rewritten: the transport is a headless
+instance of the editor running as a sync peer on the server, not a general-purpose file
+syncer. The same chapter now covers splitting the tree into a synced content vault and an
+unsynced agent layer, with the mount direction that makes it work and the one that
+distributed empty stubs to every device. Chapters 21 and 23 gained the checks and runbook
+entries that follow. New Part 7 — Life OS: what the system becomes once it is trustworthy,
+including birthdays worked end to end and a journal assembled from the day's own traces.
+Person notes are now named in natural order.
+
 A rewrite rather than a revision. v1 was an eleven-chapter installation manual; v2 is
 six parts organised around one thesis, plus the operational material that a year of
 running the thing produced.

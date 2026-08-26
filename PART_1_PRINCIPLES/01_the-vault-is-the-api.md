@@ -25,11 +25,11 @@ status: active
 
 # Quarterly planning with Acme
 
-Attendees: [[Doe_Jane]], [[Roe_Richard]]
+Attendees: [[Jane Doe]], [[Roe_Richard]]
 
 ## Decisions
 
-- Ship the migration behind a flag first. Owner: [[Doe_Jane]].
+- Ship the migration behind a flag first. Owner: [[Jane Doe]].
 
 ## Open
 
@@ -71,7 +71,7 @@ A file tree is not a free lunch, and pretending otherwise is how people end up
 surprised six months in. Four guarantees a database would give you are simply
 absent:
 
-**No referential integrity.** A wikilink to `[[Doe_Jane]]` does not require
+**No referential integrity.** A wikilink to `[[Jane Doe]]` does not require
 that the note exist. Links dangle silently. Nothing tells you.
 
 **No transactions.** A job that writes three files can be interrupted after
@@ -100,7 +100,7 @@ because a program depends on it.
 | Convention | Rule | Why a program needs it |
 |---|---|---|
 | Daily notes | `YYYY-MM-DD.md` | Lexical sort equals chronological sort. A "find the last entry" query is a directory listing, not a parse of every file. |
-| People | `Lastname_Firstname.md` | Stable identity independent of display name, so a link survives a person's name changing. |
+| People | `First Last.md` | A wikilink then reads as prose. An agent writes hundreds of these into sentences, and a reordered form reads like a database dump. Sortability comes from frontmatter fields, not the filename. |
 | Readings | `YYYY-MM-DD-kebab-title.md` | Date first, so ingestion order is visible without opening anything. |
 | Concept notes | `kebab-title.md`, no date | These are not events. A date in the filename implies one and invites duplicates. |
 | Wikilinks | `[[Exact_Filename]]`, no extension | One canonical spelling per target, so a link graph can be built by string match rather than by guessing. |

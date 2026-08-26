@@ -245,7 +245,7 @@ def test_broken_row_is_skipped_not_fatal():
 
 
 def test_reimport_preserves_prose(tmp_path):
-    note = tmp_path / "Doe_Jane.md"
+    note = tmp_path / "Jane Doe.md"
     note.write_text(WITH_PROSE, encoding="utf-8")
 
     write_import_block(note, {"Company": "Acme"})

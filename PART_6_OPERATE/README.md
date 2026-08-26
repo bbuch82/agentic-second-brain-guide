@@ -13,4 +13,4 @@ final chapter naming what is still broken.
 
 > The cost of a second brain is not the server. It is every file the agent reads on every single run.
 
-**Read next:** the [contents](../README.md)
+**Read next:** [Part 7 — Life OS](../PART_7_LIFE_OS/README.md)

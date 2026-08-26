@@ -38,7 +38,7 @@ notes that feel similar.
 piped into another command. An index is a separate system with its own freshness
 problem — and a stale index is chapter 20's whole subject.
 
-**Naming does the work an index would.** `40_Network/People/Doe_Jane.md` is found by
+**Naming does the work an index would.** `40_Network/People/Jane Doe.md` is found by
 knowing the convention. That is the payoff for chapter 01's insistence that
 conventions exist because programs depend on them.
 

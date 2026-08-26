@@ -154,6 +154,95 @@ Expected: matches the baseline count the watchdog stored.
 
 ---
 
+### Sync has silently stalled
+
+**Symptom** — a note written on one device does not appear on another. No error anywhere,
+and the `sync-peer` check is green because both container and application are alive.
+
+**Diagnose** — count files on both sides. The log will tell you nothing.
+
+```bash
+find ~/vault -name '*.md' | wc -l
+ssh <host> "find /opt/vault -name '*.md' | wc -l"
+```
+
+A persistent divergence is a stalled peer. Identify what is missing:
+
+```bash
+comm -23 <(cd ~/vault && find . -name '*.md' | sort) \
+         <(ssh <host> 'cd /opt/vault && find . -name "*.md" | sort')
+```
+
+**Fix** — restart the peer whose queue is stuck, which is not always the server:
+
+```bash
+# Server peer stalled: restart the container.
+ssh <host> 'docker restart editor'
+
+# Desktop queue stalled: quit and reopen the editor on the desktop.
+# Restarting the server container does NOTHING for this case.
+```
+
+**Verify**
+```bash
+find ~/vault -name '*.md' | wc -l    # and the same on the server
+```
+Expected: the two counts converge within a few minutes.
+
+Note which side. Getting it backwards costs an hour of restarting the wrong thing. The
+nightly restart from chapter 07 is prophylaxis against the server-side case only.
+
+---
+
+### A deletion came back
+
+**Symptom** — notes you deleted are present again, with no error and no conflict file.
+
+**Diagnose**
+```bash
+ls -la <path-you-deleted-from>
+```
+
+**Fix** — there is nothing to repair, only a procedure to follow next time. Sync tracks
+state per peer: a file removed from the server's filesystem while the peer was stopped
+is, on restart, a file the peer believes it lost, so it downloads it again.
+
+Delete on a connected end device with the editor running, never through the server's
+filesystem. Then let it propagate.
+
+**Verify**
+```bash
+ssh <host> 'ls <path> | wc -l'
+```
+Expected: matches the device you deleted on.
+
+---
+
+### The agent cannot see a directory that plainly exists
+
+**Symptom** — a capability reports finding nothing in a vault directory you can see on
+your laptop.
+
+**Diagnose**
+```bash
+ssh <host> 'docker exec agent ls /home/node/workspace/'
+```
+
+**Fix** — a new top-level content directory needs its own mount line. Add it to the
+compose file, then recreate:
+
+```bash
+ssh <host> 'cd /opt/openclaw && docker compose up -d agent'
+```
+
+**Verify**
+```bash
+ssh <host> 'docker exec agent ls /home/node/workspace/<new-directory>'
+```
+Expected: the directory's contents, not an empty listing.
+
+---
+
 ### Local git diverged from the remote
 
 **Symptom** — a push-freshness alert; local ahead and behind.

@@ -112,8 +112,10 @@ sense inside a dashboard is a note that will not survive. One that reads as pros
 
 ---
 
-That is the honest end of it. The architecture is sound, the failure modes are
-documented, the maintenance is real, and the part that will outlast all of it is the
-plainest thing in the whole design.
+That is the honest accounting of the machinery. The architecture is sound, the failure
+modes are documented, the maintenance is real, and the part that will outlast all of it is
+the plainest thing in the whole design.
 
-**Read next:** the [contents](../README.md), or [`starter/`](../starter/) to build it.
+Which leaves the question of what the machinery is actually for.
+
+**Read next:** [Part 7 — Life OS](../PART_7_LIFE_OS/README.md).
