@@ -219,6 +219,12 @@ entirely.
 - **Not a replacement for deciding what matters.** It removes friction from capture and
   retrieval. The thinking stays yours.
 
+## Support
+
+If this saved you time, there is a tip jar.
+
+<a href="https://buymeacoffee.com/bastianbuch" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="42"></a>
+
 ## Contributing
 
 Corrections and additions are welcome by issue or pull request. Note that this
